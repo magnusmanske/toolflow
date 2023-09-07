@@ -1,0 +1,23 @@
+<template id='main-page-template'>
+<div class='container'>
+    <div class='lead'>
+        Lead
+    </div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let MainPage = Vue.extend ( {
+    props : [] ,
+    data : function () { return { shex:'' } } ,
+    created : function () {
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+    } ,
+    template:'#main-page-template'
+} ) ;
+</script>

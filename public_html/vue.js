@@ -1,50 +1,36 @@
-let doc = {
-	nodes:[
-		{
-			type:"sparql",
-			params:{
-				query:"select ?street ?streetLabel { ?street wdt:P31 wd:Q79007 ; wdt:P131* wd:Q1731 . MINUS { ?street wdt:P138 [] } SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],de\". } }",
-			},
-			mapping:{
-				street:{id:"item",type:"wikidata_item"},
-				stretLabel:{id:"label",type:"text"}
-			}
-		},
-		{
-			type:"wikitext",
-			params:{
-				wiki:"dewiki",
-				page:"Liste der nach Personen benannten Straßen und Plätze in Dresden"
-			}
-		},
-		{
-			type:"process_text",
-			params:{
-				regexp:[
-					{
-						search:"^\\*+ *'''(.+?)''': *\\[\\[ *(.+?) *[\\}\\|]",
-						mapping:[
-							{id:"label",type:"text"},
-							{id:"page",type:"wiki_page",wiki:"dewiki"}
-						]
-					}
-				]
-			}
-		},
-		{
-			type:"merge",
-			params:{
-				keys:[["label","label"]]
-			}
-		}
-	],
-	edges:[
-		{from:1,to:2},
-		{from:0,to:3,as:0},
-		{from:2,to:3,as:1},
-	]
-};
+'use strict';
+
+let router ;
+let app ;
+let wd = new WikiData() ;
+
+let config = {
+	toolflow_api:"https://toolflow.toolforge.org/api.php",
+	wikibase_api:"https://www.wikidata.org/w/api.php",
+} ;
 
 $(document).ready ( function () {
-	console.log(JSON.stringify(doc));
-});
+
+
+    vue_components.toolname = 'toolflow' ;
+//    vue_components.components_base_url = 'https://tools.wmflabs.org/magnustools/resources/vue/' ; // For testing; turn off to use tools-static
+    Promise.all ( [
+        vue_components.loadComponents ( ['wd-date','wd-link','tool-translate','tool-navbar','commons-thumbnail','widar','autodesc','typeahead-search','value-validator',
+            'vue_components/main-page.html',
+            ] )
+    ] )
+    .then ( () => {
+        widar_api_url = config.toolflow_api ;
+
+        wd.set_custom_api ( config.wikibase_api , function () {
+        wd_link_wd = wd ;
+          const routes = [
+            { path: '/', component: MainPage , props:true },
+          ] ;
+          router = new VueRouter({routes}) ;
+          app = new Vue ( { router } ) .$mount('#app') ;
+          $('#help_page').attr('href',wd.page_path.replace(/\$1/,config.source_page));
+        } ) ;
+
+    } ) ;
+} ) ;

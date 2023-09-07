@@ -3,6 +3,26 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// require '../vendor/autoload.php';
+require_once ( "php/Widar.php" );
+require_once ( "php/ToolforgeCommon.php" );
+
+$config = json_decode(file_get_contents("../config.json"));
+// print_r($config);
+
+$oauth_url = $config->oauth_url ;
+$widar = new Widar ( 'toolflow' , $oauth_url ) ;
+$widar->attempt_verification_auto_forward ( $config->toolflow_url ) ;
+$widar->authorization_callback = $config->toolflow_api ;
+try {
+	if ( $widar->render_reponse ( true ) ) exit ( 0 ) ;
+} catch ( Exception $e ) {
+
+}
+print json_encode ( ['data'=>'ERROR'] ) ;
+
+
+/*
 require_once ( '/data/project/toolflow/toolflow.php' ) ;
 
 function fin() {
@@ -33,5 +53,5 @@ if ( $action == "get_workflow" ) {
 }
 
 fin();
-
+*/
 ?>

@@ -16,7 +16,7 @@ final class JSONLfile {
 		if ( file_exists($filename) ) unlink($filename);
 		$this->name = $filename ;
 		$secure_path = $tf->dbt->real_escape_string($filename);
-		$sql = "INSERT INTO `file` (`path`,`workflow_id`,`status`) VALUES('{$secure_path}',{$workflow_id},'RUNNING')" ;
+		$sql = "INSERT INTO `file` (`path`,`workflow_id`,`status`,`type`) VALUES('{$secure_path}',{$workflow_id},'RUNNING','jsonl')" ;
 		print "{$sql}\n" ;
 		$tf->getSQL($sql);
 		$this->id = $tf->dbt->insert_id;
