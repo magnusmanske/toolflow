@@ -1,0 +1,88 @@
+<template id='run-template'>
+<div class='container'>
+    <div v-if="typeof run.id!='undefined'">
+        <h1>Run {{run.id}} <small>[workflow <router-link :to="'/workflow/'+run.workflow_id">{{run.workflow_id}}</router-link>]</small></h1>
+        <div>
+            <button type="button" class="btn btn-primary">
+                Status
+                <span class="badge badge-light">{{run.status}}</span>
+            </button>
+            <button type="button" class="btn btn-secondary">
+                Nodes
+                <span class="badge badge-light">{{run.nodes_total}}</span>
+            </button>
+            <button type="button" class="btn btn-success">
+                Nodes done
+                <span class="badge badge-light">{{run.nodes_done}}</span>
+            </button>
+        </div>
+
+        <h2>Files</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Size</th>
+                    <th>Expiration</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for='f in files'>
+                    <td>
+                        <a :href="'./api.php?action=download_file&uuid='+f.uuid">
+                            <b v-if='f.is_output==1'>{{f.uuid}}</b>
+                            <span v-else>{{f.uuid}}</span>
+                        </a>
+                    </td>
+                    <td>{{nice_size(f.size)}}</td>
+                    <td>{{f.expires}}</td>
+                    <td>
+                        <span v-if='f.is_output==1'><b>Result</b></span>
+                        <span v-else-if='f.is_output==0'>Temporary</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let Run = Vue.extend ( {
+    props : ['id'] ,
+    data : function () { return { run:{} , files:[] } } ,
+    created : function () {
+        this.load_run(this.id);
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+        load_run(id) {
+            const myRequest = new Request("./api.php?action=get_run&id="+id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.files = data.files;
+                    this.run = data.run;
+                })
+                .catch(console.error);
+        },
+        nice_size(x) {
+            let ret = x;
+            let unit = "Bytes";
+            if ( x>1024*1024*1024 ) { ret = x/(1024*1024*1024); unit = "GB"; }
+            else if ( x>1024*1024 ) { ret = x/(1024*1024); unit = "MB"; }
+            else if ( x>1024 ) { ret = x/(1024); unit = "KB"; }
+            if ( unit!="Bytes" ) ret = Math.round(ret*10)/10;
+            return ''+ret+unit;
+        },
+        is_logged_in() {
+            return widar.is_logged_in;
+        }
+    } ,
+    template:'#run-template'
+} ) ;
+</script>

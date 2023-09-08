@@ -17,6 +17,9 @@ $(document).ready ( function () {
     Promise.all ( [
         vue_components.loadComponents ( ['wd-date','wd-link','tool-translate','tool-navbar','commons-thumbnail','widar','autodesc','typeahead-search','value-validator',
             'vue_components/main-page.html',
+            'vue_components/workflow.html',
+            'vue_components/workflows.html',
+            'vue_components/run.html',
             ] )
     ] )
     .then ( () => {
@@ -26,6 +29,10 @@ $(document).ready ( function () {
         wd_link_wd = wd ;
           const routes = [
             { path: '/', component: MainPage , props:true },
+            { path: '/workflow', component: Workflow , props:true },
+            { path: '/workflow/:id', component: Workflow , props:true },
+            { path: '/workflows/:mode', component: Workflows , props:true },
+            { path: '/run/:id', component: Run , props:true },
           ] ;
           router = new VueRouter({routes}) ;
           app = new Vue ( { router } ) .$mount('#app') ;

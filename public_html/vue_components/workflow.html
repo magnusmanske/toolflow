@@ -1,0 +1,152 @@
+<style>
+div.connector_right {
+    border-right: 1px solid black;
+}
+div.connector_left {
+    border-left: 1px solid black;
+}
+div.connector_bottom {
+    border-bottom: 1px solid black;
+}
+div.node {
+    border:1px solid black;
+    box-shadow: 0 10px 16px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19) !important;
+    padding: 2px;
+}
+div.node:hover {
+    border:1px solid gold;
+}
+div.edge:hover {
+    border:1px solid gold;
+}
+</style>
+
+<template id='workflow-template'>
+<div class='container'>
+    <div v-if="typeof workflow.name!='undefined'">
+        <div style="float:right">
+            <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary">Published</button>
+            <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary">Draft</button>
+        </div>
+        <h1>Workflow {{workflow.id}}: {{workflow.name}}</h1>
+        <div>
+            by 
+            <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflow.user_id].name)" target="_blank" class="wikidata">{{users[workflow.user_id].name}}</a>
+        </div>
+        <div v-if='layout_done'>
+            {{layout}}
+        </div>
+
+        <div v-if='layout_done' :style="'width:'+screen_width+'px;height:'+screen_height+'px;border:1px solid #DDD;padding:2px;position:relative;'">
+            <div v-for='e in layout.edges' :style="'position:absolute; top:'+e.y+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname1+' connector_bottom edge'"></div>
+
+            <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h/2)+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname2+' edge'"></div>
+
+            <div v-for='n in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" class="node">
+                {{workflow.json.nodes[n.node_id].kind}}
+            </div>
+        </div>
+    </div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let Workflow = Vue.extend ( {
+    props : ['id'] ,
+    data : function () { return { workflow:{} , users:{} , layout:{} , layout_done:false,
+            screen_width: 1024, screen_height: 512,
+     } } ,
+    created : function () {
+        if ( typeof this.id!='undefined' ) this.load_workflow(this.id);
+        else {} // TODO CREATE NEW WORKFLOW
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+        load_workflow(id) {
+            const myRequest = new Request("./api.php?action=get_workflow&id="+id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log(JSON.parse(JSON.stringify(data)));
+                    this.users = data.users;
+                    this.workflow = data.workflow;
+                    this.run_layout();
+                })
+                .catch(console.error);
+        },
+        run_layout() {
+            this.layout_done = false;
+            this.layout = { nodes:[] , edges:[] };
+
+            let nodes = this.workflow.json.nodes;
+            let edges = this.workflow.json.edges;
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                let n = nodes[node_id];
+                //console.log(JSON.stringify(n));
+                let o = { node_id:node_id , row:0 , col:node_id , calc_cols:[] };
+                this.layout.nodes.push(o);
+            }
+
+            let max_row = 0;
+            for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {
+                let e = edges[edge_id];
+                if ( this.layout.nodes[e.target_node].row <= this.layout.nodes[e.source_node].row ) {
+                    this.layout.nodes[e.target_node].row = this.layout.nodes[e.source_node].row + 1;
+                    if ( max_row<this.layout.nodes[e.target_node].row ) max_row=this.layout.nodes[e.target_node].row;
+                }
+                let o = { source:e.source_node , target:e.target_node };
+                this.layout.edges.push(o);
+            }
+
+            for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {
+                let e = edges[edge_id];
+                this.layout.nodes[e.target_node].calc_cols.push(this.layout.nodes[e.source_node].col);
+            }
+
+            let node_width = this.screen_width/(nodes.length+1); 
+            let node_height = this.screen_height/(max_row+2);
+
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                let n = this.layout.nodes[node_id];
+                if ( n.calc_cols.length>0 ) {
+                    let sum = 0 ;
+                    n.calc_cols.forEach(function(item, index) { sum += item ; });
+                    n.col = sum/n.calc_cols.length;
+                }
+                n.x = Math.floor(n.col * (this.screen_width/nodes.length))+2;
+                n.w = Math.floor(node_width)+2;
+                n.y = Math.floor(n.row * (this.screen_height/(max_row+1)));
+                n.h = Math.floor(node_height);
+            }
+
+            for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {
+                let e = this.layout.edges[edge_id];
+                let ns = this.layout.nodes[e.source];
+                let nt = this.layout.nodes[e.target];
+                e.x = Math.floor(ns.x+ns.w/2);
+                e.y = ns.y+ns.h;
+                e.w = nt.x-ns.x;
+                e.h = nt.y-ns.y-ns.h;
+                e.classname1 = "connector_left";
+                e.classname2 = "connector_right";
+
+                if ( e.w < 0 ) {
+                    e.x += e.w ;
+                    e.w = -e.w ;
+                    e.classname1 = "connector_right";
+                    e.classname2 = "connector_left";
+                }
+            }
+
+            this.layout_done = true;
+        },
+        is_logged_in() {
+            return widar.is_logged_in;
+        }
+    } ,
+    template:'#workflow-template'
+} ) ;
+</script>

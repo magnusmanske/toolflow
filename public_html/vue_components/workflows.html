@@ -1,0 +1,61 @@
+<template id='workflows-template'>
+<div class='container'>
+    <h1 v-if='mode=="recent"'>Recently run workflows</h1>
+    <div v-if="runs.length>0">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>Status</th>
+                    <th>Last completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for='r in runs'>
+                    <td>
+                        <router-link :to="'/workflow/'+r.workflow_id">{{workflows[r.workflow_id].name}}</router-link>
+                    </td>
+                    <td>
+                        <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflows[r.workflow_id].user_id].name)" target="_blank" class="wikidata">{{users[workflows[r.workflow_id].user_id].name}}</a></td>
+                    <td>{{r.status}}</td>
+                    <td>
+                        <router-link :to="'/run/'+r.id">{{r.ts_last}}</router-link>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let Workflows = Vue.extend ( {
+    props : ['mode'] ,
+    data : function () { return { workflows:{} , runs:[] , users:{} } } ,
+    created : function () {
+        this.load_workflows();
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+        load_workflows() {
+            const myRequest = new Request("./api.php?action=get_workflows&mode="+this.mode);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.workflows = data.workflows;
+                    this.users = data.users;
+                    this.runs = data.runs;
+                })
+                .catch(console.error);
+        },
+        is_logged_in() {
+            return widar.is_logged_in;
+        }
+    } ,
+    template:'#workflows-template'
+} ) ;
+</script>

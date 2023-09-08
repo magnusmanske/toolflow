@@ -1,7 +1,21 @@
 <template id='main-page-template'>
 <div class='container'>
-    <div class='lead'>
-        Lead
+    <div class='jumbotron' tt='lead'></div>
+    <div>
+        <ul>
+            <li>
+                <span v-if='is_logged_in()'>
+                    <router-link to="/workflow" tt='create_new_workflow'></router-link>
+                </span>
+                <span v-else>
+                    <span style='text-decoration: line-through;' tt='create_new_workflow'></span>
+                    <i tt='log_in_for_this_action'></i>
+                </span>
+            </li>
+            <li>
+                <router-link to="/workflows/recent" tt='recent_workflows'></router-link>
+            </li>
+        </ul>
     </div>
 </div>
 </template>
@@ -11,12 +25,15 @@
 
 let MainPage = Vue.extend ( {
     props : [] ,
-    data : function () { return { shex:'' } } ,
+    data : function () { return {} } ,
     created : function () {
     } ,
     updated : function () { tt.updateInterface(this.$el) ; } ,
     mounted : function () { tt.updateInterface(this.$el) ; } ,
     methods : {
+        is_logged_in() {
+            return widar.is_logged_in;
+        }
     } ,
     template:'#main-page-template'
 } ) ;
