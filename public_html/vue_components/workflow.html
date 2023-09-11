@@ -50,7 +50,7 @@ div.node-selected {
         </div>
         <div v-if='layout_done'>
             <div v-if="current_node_id!=-1">
-                <node-editor :key="'node_container_'+current_node_id" :node="workflow.json.nodes[current_node_id]" :node_id="current_node_id"></node-editor>
+                <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :node_id="current_node_id"></node-editor>
             </div>
         </div>
 
@@ -61,7 +61,7 @@ div.node-selected {
 
             <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click.prevent="current_node_id=node_id">
                 <div class="node-title">
-                    {{workflow.json.nodes[n.node_id].kind}}
+                    #{{n.node_id+1}} {{workflow.json.nodes[n.node_id].kind}}
                 </div>
                 <div class="node-body">
                     <div v-if="workflow.json.nodes[n.node_id].kind=='Sparql'">
