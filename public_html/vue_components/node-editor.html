@@ -1,0 +1,55 @@
+<template id='node-editor-template'>
+<div class="card" style="margin-bottom:1rem;">
+	<div class="card-body" :key="'node_'+node_id">
+		<h5 class="card-title">Node #{{node_id+1}}: {{n.kind}}</h5>
+		<header-mapping :header_mapping="n.header_mapping"></header-mapping>
+		<div class="card-text">
+			<div v-if="n.kind=='Quarry'">
+				<div>
+					<label><span tt="quarry_id"></span> <input type="text" v-model="n.parameters.query_id"/></label>
+				</div>
+				<div>
+					<label><span tt="run_id"></span> <input type="text" v-model="n.parameters.run_id"/></label>
+				</div>
+			</div>
+
+			<div v-else-if="n.kind=='Sparql'">
+				<textarea v-model="n.parameters.sparql" style="width: 100%;"></textarea>
+			</div>
+
+			<div v-else-if="n.kind=='Join'">
+				<div v-if="n.parameters.mode=='inner_join_on_key'">
+					<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" /></label>
+				</div>
+				<div v-else>
+					UNKNOWN JOIN MODE {{n.parameters.mode}}
+				</div>
+			</div>
+
+			<div v-else>
+				<div>UNKNOWN TYPE {{n.kind}}</div>
+				{{n}}
+			</div>
+
+		</div>
+	</div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+Vue.component ( 'node-editor' , {
+	template : '#node-editor-template' ,
+	props : [ 'node','node_id' ] ,
+	data : function () { return { n:{} } } ,
+	created : function () {
+		this.n = this.node;
+	} ,
+	updated : function () {
+		this.n = this.node;
+	} ,
+	methods : {
+	}
+} ) ;
+</script>

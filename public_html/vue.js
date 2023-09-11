@@ -20,6 +20,8 @@ $(document).ready ( function () {
             'vue_components/workflow.html',
             'vue_components/workflows.html',
             'vue_components/run.html',
+            'vue_components/node-editor.html',
+            'vue_components/header-mapping.html',
             ] )
     ] )
     .then ( () => {

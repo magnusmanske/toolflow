@@ -9,15 +9,29 @@ div.connector_bottom {
     border-bottom: 1px solid black;
 }
 div.node {
-    border:1px solid black;
+    border:1px solid #DDD;
     box-shadow: 0 10px 16px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19) !important;
     padding: 2px;
 }
 div.node:hover {
     border:1px solid gold;
 }
-div.edge:hover {
-    border:1px solid gold;
+div.node-title {
+    text-align: center;
+    font-weight: bold;
+    border-bottom: 1px solid #DDD;
+    background-color: #D7EEFF;
+}
+div.node-body {
+    font-size: 9pt;
+    line-height: 100%;
+    position: absolute;
+    top: 20pt;
+    bottom: 2px;
+    overflow: auto;
+}
+div.node-selected {
+    border: 3px solid #FFCCE1 !important;
 }
 </style>
 
@@ -28,13 +42,16 @@ div.edge:hover {
             <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary">Published</button>
             <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary">Draft</button>
         </div>
-        <h1>Workflow {{workflow.id}}: {{workflow.name}}</h1>
+        <h1>Workflow #{{workflow.id}}</h1>
+        <h2>{{workflow.name}}</h2>
         <div>
             by 
             <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflow.user_id].name)" target="_blank" class="wikidata">{{users[workflow.user_id].name}}</a>
         </div>
         <div v-if='layout_done'>
-            {{layout}}
+            <div v-if="current_node_id!=-1">
+                <node-editor :key="'node_container_'+current_node_id" :node="workflow.json.nodes[current_node_id]" :node_id="current_node_id"></node-editor>
+            </div>
         </div>
 
         <div v-if='layout_done' :style="'width:'+screen_width+'px;height:'+screen_height+'px;border:1px solid #DDD;padding:2px;position:relative;'">
@@ -42,8 +59,29 @@ div.edge:hover {
 
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h/2)+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname2+' edge'"></div>
 
-            <div v-for='n in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" class="node">
-                {{workflow.json.nodes[n.node_id].kind}}
+            <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click.prevent="current_node_id=node_id">
+                <div class="node-title">
+                    {{workflow.json.nodes[n.node_id].kind}}
+                </div>
+                <div class="node-body">
+                    <div v-if="workflow.json.nodes[n.node_id].kind=='Sparql'">
+                        <a :href="'https://query.wikidata.org/#'+encodeURIComponent(workflow.json.nodes[n.node_id].parameters.sparql)" class="external" target="_blank">
+                            <div>{{workflow.json.nodes[n.node_id].parameters.sparql}}</div>
+                        </a>
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='Quarry'">
+                        <a v-if="typeof workflow.json.nodes[n.node_id].parameters.query_id!='undefined'" :href="'https://quarry.wmcloud.org/query/'+workflow.json.nodes[n.node_id].parameters.query_id" target="_blank" class="external">
+                            Query #{{workflow.json.nodes[n.node_id].parameters.query_id}}
+                        </a>
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='Join'">
+                        <div>{{workflow.json.nodes[n.node_id].parameters.mode.replace(/_/g,' ')}}</div>
+                        <div>on <i>{{workflow.json.nodes[n.node_id].parameters.join_key}}</i></div>
+                    </div>
+                    <div v-else>
+                        {{workflow.json.nodes[n.node_id]}}
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -55,8 +93,8 @@ div.edge:hover {
 
 let Workflow = Vue.extend ( {
     props : ['id'] ,
-    data : function () { return { workflow:{} , users:{} , layout:{} , layout_done:false,
-            screen_width: 1024, screen_height: 512,
+    data : function () { return { workflow:{} , users:{} , current_node_id:-1 ,
+            layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
     created : function () {
         if ( typeof this.id!='undefined' ) this.load_workflow(this.id);
@@ -70,10 +108,11 @@ let Workflow = Vue.extend ( {
             fetch(myRequest)
                 .then((response) => response.json())
                 .then((data) => {
-                    console.log(JSON.parse(JSON.stringify(data)));
+                    // console.log(JSON.parse(JSON.stringify(data)));
                     this.users = data.users;
                     this.workflow = data.workflow;
                     this.run_layout();
+                    this.current_node_id = 0; // TESTING FIXME
                 })
                 .catch(console.error);
         },
@@ -109,6 +148,7 @@ let Workflow = Vue.extend ( {
             let node_width = this.screen_width/(nodes.length+1); 
             let node_height = this.screen_height/(max_row+2);
 
+            let max_x = 0;
             for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
                 let n = this.layout.nodes[node_id];
                 if ( n.calc_cols.length>0 ) {
@@ -120,6 +160,13 @@ let Workflow = Vue.extend ( {
                 n.w = Math.floor(node_width)+2;
                 n.y = Math.floor(n.row * (this.screen_height/(max_row+1)));
                 n.h = Math.floor(node_height);
+                if ( max_x < n.x+n.w ) max_x = n.x+n.w ;
+            }
+
+            let margin_left = Math.floor ( ( this.screen_width - max_x ) / 2 ) ;
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                this.layout.nodes[node_id].x += margin_left ;
+                this.layout.nodes[node_id].y += 2 ;
             }
 
             for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {

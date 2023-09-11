@@ -1,0 +1,76 @@
+<style>
+div.header-box {
+	border: 1px solid #DDD;
+	margin-right: 5px;
+}
+div.header-box-subtitle {
+	font-weight: bold;
+}
+div.header-mapping-row {
+	white-space: nowrap;
+}
+div.header-title {
+    text-align: center;
+    font-weight: bold;
+    border-bottom: 1px solid #DDD;
+    background-color: #D7EEFF;
+}
+div.header-mapping {
+	font-size: 10pt;
+}
+div.header-mapping-title {
+    font-weight: bold;
+    border-bottom: 1px solid #DDD;	
+    background-color: #D7EEFF;
+}
+</style>
+
+<template id='header-mapping-template'>
+<div>
+	<!-- <h3 tt="header"></h3> -->
+	<div style="display: flex; overflow: auto;">
+		<div v-for="h in header_mapping.data" class="header-box">
+			<div class="header-title">
+				{{h.header.name}}
+			</div>
+			<div v-if="typeof h.header.kind.WikiPage!='undefined'">
+				<div class="header-box-subtitle" tt="wiki_page"></div>
+				<div><label><span tt='wiki'></span> <input type='text' v-model='h.header.kind.WikiPage.wiki' /></label></div>
+				<div><label><span tt='namespace_id'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_id' /></label></div>
+				<div><label><span tt='ns_prefix'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_prefix' /></label></div>
+				<!-- TODO update namespace ID/prefix when the other is updated -->
+			</div>
+			<div v-else-if="h.header.kind=='PlainText'">
+				<div class="header-box-subtitle" tt="plain_text"></div>
+			</div>
+			<div v-else>
+				UNKNOWN: {{h}}
+			</div>
+			<div class="header-mapping-title" tt="mapping"></div>
+			<div class="header-mapping">
+				<div v-for="pair in h.mapping" class="header-mapping-row">
+					<input type="text" v-model="pair[0]" />
+					&rArr;
+					<input type="text" v-model="pair[1]" />
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- <div>{{header_mapping}}</div> -->
+	<hr/>
+</div>
+</template>
+
+<script>
+'use strict';
+
+Vue.component ( 'header-mapping' , {
+	template : '#header-mapping-template' ,
+	props : [ 'header_mapping' ] ,
+	data : function () { return {  } } ,
+	created : function () {
+	} ,
+	methods : {
+	}
+} ) ;
+</script>
