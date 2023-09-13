@@ -27,8 +27,27 @@ div.node-body {
     line-height: 100%;
     position: absolute;
     top: 20pt;
-    bottom: 2px;
+    bottom: 25px;
     overflow: auto;
+}
+div.node-output {
+    border-top: 1px solid #DDD;
+    font-size: 9pt;
+    line-height: 100%;
+    position: absolute;
+    height: 20px;
+    bottom: 2px;
+    left: 0px;
+    right: 0px;
+    padding: 2px;
+    overflow: auto;
+}
+span.node-output {
+    margin-right: 5px;
+    border-right: 1px solid #DDD;
+}
+span.node-output:last-of-type {
+    border-right: none;
 }
 div.node-selected {
     border: 3px solid #FFCCE1 !important;
@@ -36,7 +55,7 @@ div.node-selected {
 </style>
 
 <template id='workflow-template'>
-<div class='container'>
+<div class='container' id='workflow-container'>
     <div v-if="typeof workflow.name!='undefined'">
         <div style="float:right">
             <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary">Published</button>
@@ -50,7 +69,7 @@ div.node-selected {
         </div>
         <div v-if='layout_done'>
             <div v-if="current_node_id!=-1">
-                <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :node_id="current_node_id"></node-editor>
+                <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id"></node-editor>
             </div>
         </div>
 
@@ -59,20 +78,19 @@ div.node-selected {
 
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h/2)+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname2+' edge'"></div>
 
-            <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click.prevent="current_node_id=node_id">
+            <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click="current_node_id=node_id">
                 <div class="node-title">
+                    <div style="float:right;" v-if='node_ext_url(workflow.json.nodes[n.node_id])!=""'>
+                        <a :href="node_ext_url(workflow.json.nodes[n.node_id])" target="_blank" class="external">&#x1f517;</a>
+                    </div>
                     #{{n.node_id+1}} {{workflow.json.nodes[n.node_id].kind}}
                 </div>
                 <div class="node-body">
                     <div v-if="workflow.json.nodes[n.node_id].kind=='Sparql'">
-                        <a :href="'https://query.wikidata.org/#'+encodeURIComponent(workflow.json.nodes[n.node_id].parameters.sparql)" class="external" target="_blank">
-                            <div>{{workflow.json.nodes[n.node_id].parameters.sparql}}</div>
-                        </a>
+                        <div>{{workflow.json.nodes[n.node_id].parameters.sparql}}</div>
                     </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Quarry'">
-                        <a v-if="typeof workflow.json.nodes[n.node_id].parameters.query_id!='undefined'" :href="'https://quarry.wmcloud.org/query/'+workflow.json.nodes[n.node_id].parameters.query_id" target="_blank" class="external">
-                            Query #{{workflow.json.nodes[n.node_id].parameters.query_id}}
-                        </a>
+                        Query #{{workflow.json.nodes[n.node_id].parameters.query_id}}
                     </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Join'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.mode.replace(/_/g,' ')}}</div>
@@ -81,6 +99,12 @@ div.node-selected {
                     <div v-else>
                         {{workflow.json.nodes[n.node_id]}}
                     </div>
+                </div>
+                <div v-if="workflow.json.nodes[n.node_id].header_mapping.data.length>0" class="node-output">
+                    <span>&rArr;</span>
+                    <span v-for="data in workflow.json.nodes[n.node_id].header_mapping.data" class="node-output">
+                        {{data.header.name}}
+                    </span>
                 </div>
             </div>
         </div>
@@ -93,7 +117,7 @@ div.node-selected {
 
 let Workflow = Vue.extend ( {
     props : ['id'] ,
-    data : function () { return { workflow:{} , users:{} , current_node_id:-1 ,
+    data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}},
             layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
     created : function () {
@@ -116,7 +140,11 @@ let Workflow = Vue.extend ( {
                 })
                 .catch(console.error);
         },
+        node_ext_url(n) {
+            return node_ext_url(n);
+        },
         run_layout() {
+            this.screen_width = $('#workflow-container').width();
             this.layout_done = false;
             this.layout = { nodes:[] , edges:[] };
 

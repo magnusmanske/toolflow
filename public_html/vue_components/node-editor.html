@@ -3,40 +3,55 @@
 	<div class="card-body" :key="'node_'+node_id">
 		<h5 class="card-title">Node #{{node_id+1}}: {{n.kind}}</h5>
 		<div class="card-text">
-			<div v-if="n.kind=='Quarry'">
-				<div>
-					<label><span tt="quarry_id"></span> <input type="text" v-model="n.parameters.query_id"/></label>, <i tt="or"></i>
-					<label><span tt="run_id"></span> <input type="text" v-model="n.parameters.run_id"/></label>
-				</div>
-			</div>
+			<table class="table">
 
-			<div v-else-if="n.kind=='Sparql'">
-				<textarea v-model="n.parameters.sparql" style="width: 100%;"></textarea>
-			</div>
+				<tr>
+					<th>Parameters</th>
+					<td>
+						<div v-if="n.kind=='Quarry'">
+							<div>
+								<label><span tt="quarry_id"></span> <input type="text" v-model="n.parameters.query_id"/></label>, <i tt="or"></i>
+								<label><span tt="run_id"></span> <input type="text" v-model="n.parameters.run_id"/></label>
+							</div>
+						</div>
 
-			<div v-else-if="n.kind=='Join'">
-				<div v-if="n.parameters.mode=='inner_join_on_key'">
-					<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" /></label>
-				</div>
-				<div v-else>
-					UNKNOWN JOIN MODE {{n.parameters.mode}}
-				</div>
-			</div>
+						<div v-else-if="n.kind=='Sparql'">
+							<textarea v-model="n.parameters.sparql" style="width: 100%;"></textarea>
+						</div>
 
-			<div v-else>
-				<div>UNKNOWN TYPE {{n.kind}}</div>
-				{{n}}
-			</div>
+						<div v-else-if="n.kind=='Join'">
+							<div v-if="n.parameters.mode=='inner_join_on_key'">
+								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" /></label>
+							</div>
+							<div v-else>
+								UNKNOWN JOIN MODE {{n.parameters.mode}}
+							</div>
+						</div>
 
-			<header-mapping :header_mapping="n.header_mapping"></header-mapping>
+						<div v-else>
+							<div>UNKNOWN TYPE {{n.kind}}</div>
+							{{n}}
+						</div>
+					</td>
+				</tr>
 
-			<div v-if="inputs.length>0">
-				<hr/>
-				<b>Inputs</b>
-				<div v-for="input_node_id,slot in inputs">
-					Slot {{slot+1}}: node {{input_node_id+1}} [{{json.nodes[input_node_id].kind}}]
-				</div>
-			</div>
+				<tr v-if="inputs.length>0">
+					<th>Inputs</th>
+					<td>
+						<div v-for="input_node_id,slot in inputs">
+							Slot {{slot+1}}: node {{input_node_id+1}} [{{json.nodes[input_node_id].kind}}]
+						</div>
+					</td>
+				</tr>
+
+				<tr v-if="n.header_mapping.data.length>0">
+					<th>Output<br/>mapping</th>
+					<td>
+						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options'></header-mapping>
+					</td>
+				</tr>
+			</table>
+
 
 		</div>
 	</div>
@@ -48,16 +63,15 @@
 
 Vue.component ( 'node-editor' , {
 	template : '#node-editor-template' ,
-	props : [ 'json','node_id' ] ,
-	data : function () { return { n:{} , inputs:[] } } ,
+	props : [ 'json','node_id','external_headers' ] ,
+	data : function () { return { n:{} , inputs:[] , header_options:[] } } ,
 	created : function () {
 		this.n = this.clone_node(this.node_id);
 		this.calculate_inputs();
+		this.set_header_ids();
 	} ,
-	updated : function () {
-		this.n = this.clone_node(this.node_id);
-		this.calculate_inputs();
-	} ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
 	methods : {
 		clone_node(node_id) {
 			return JSON.parse(JSON.stringify(this.json.nodes[node_id]));
@@ -68,6 +82,12 @@ Vue.component ( 'node-editor' , {
 				let e = this.json.edges[edge_id];
 				if ( e.target_node==this.node_id ) this.inputs[e.target_slot] = e.source_node;
 			}
+		},
+		set_header_ids() {
+			let self = this;
+			external_ids.load_node(self.n,function(header_options){
+				self.header_options=header_options;
+			});
 		}
 	}
 } ) ;

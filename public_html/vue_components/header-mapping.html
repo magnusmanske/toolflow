@@ -17,42 +17,78 @@ div.header-title {
 }
 div.header-mapping {
 	font-size: 10pt;
+	margin-top: 0.5rem;
+	border-top: 1px solid #DDD;
+	padding-top: 2px;
 }
 div.header-mapping-title {
     font-weight: bold;
     border-bottom: 1px solid #DDD;	
     background-color: #D7EEFF;
 }
+input[readonly].readonly {
+  background-color:#EEE;
+  border: 0;
+  font-size: 1em;
+}
+
 </style>
 
 <template id='header-mapping-template'>
 <div>
-	<!-- <h3 tt="header"></h3> -->
 	<div style="display: flex; overflow: auto;">
-		<div style="border-top:1px solid #DDD;">&nbsp;</div>
 		<div v-for="h in header_mapping.data" class="header-box">
 			<div class="header-title">
 				{{h.header.name}}
 			</div>
 			<div v-if="typeof h.header.kind.WikiPage!='undefined'">
-				<div class="header-box-subtitle" tt="wiki_page"></div>
+				<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="wiki_page"></span></div>
 				<div><label><span tt='wiki'></span> <input type='text' v-model='h.header.kind.WikiPage.wiki' /></label></div>
-				<div><label><span tt='namespace_id'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_id' /></label></div>
-				<div><label><span tt='ns_prefix'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_prefix' /></label></div>
-				<!-- TODO update namespace ID/prefix when the other is updated -->
+
+				<div tt_title="namespace_column">
+					<div v-if="typeof ns[h.header.kind.WikiPage.wiki]!='undefined'">
+						<span tt="namespace"></span>
+						<select v-model="h.header.kind.WikiPage.ns_id">
+							<option tt="no_default_namespace"></option>
+							<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @change="console.log('!!')">{{k}}: {{v.canonical}}</option>
+						</select>
+					</div>
+					<div v-else>
+						<div><label><span tt='namespace_id'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_id' /></label></div>
+						<div><label><span tt='ns_prefix'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_prefix' /></label></div>
+					</div>
+				</div>
+
 			</div>
 			<div v-else-if="h.header.kind=='PlainText'">
-				<div class="header-box-subtitle" tt="plain_text"></div>
+				<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="plain_text"></span></div>
 			</div>
 			<div v-else>
 				UNKNOWN: {{h}}
 			</div>
-			<div class="header-mapping-title" tt="mapping"></div>
+
+			<!-- <div class="header-mapping-title" tt="mapping"></div> -->
 			<div class="header-mapping">
 				<div v-for="pair in h.mapping" class="header-mapping-row">
-					<input type="text" v-model="pair[0]" />
-					&rArr;
-					<input type="text" v-model="pair[1]" />
+					<input v-if="header_options.length==1" type="text" v-model="pair[0]" readonly class="readonly" tt_title="only_one_option" />
+					<select v-else-if="header_options.length>0" v-model="pair[0]">
+						<option v-for="h in header_options" :value="h">{{h}}</option>
+					</select>
+					<input v-else type="text" v-model="pair[0]" />
+
+					<span v-if="header_has_parts(h)">&rArr;</span>
+
+					<select v-if="typeof h.header.kind.WikiPage!='undefined'" v-model="pair[1]">
+						<option value="title" tt="wp_title"></option>
+						<option value="prefixed_title" tt="wp_prefixed_title"></option>
+						<option value="ns_id" tt="wp_ns_id"></option>
+						<option value="ns_prefix" tt="wp_ns_prefix"></option>
+						<option value="page_id" tt="wp_page_id"></option>
+						<option value="wiki" tt="wp_wiki"></option>
+						<option value="entity_url" tt="wp_entity_url"></option>
+					</select>
+					<span v-else-if="h.header.kind=='PlainText'"></span>
+					<input v-else type="text" v-model="pair[1]" />
 				</div>
 			</div>
 		</div>
@@ -65,11 +101,23 @@ div.header-mapping-title {
 
 Vue.component ( 'header-mapping' , {
 	template : '#header-mapping-template' ,
-	props : [ 'header_mapping' ] ,
-	data : function () { return {  } } ,
+	props : [ 'header_mapping','header_options' ] ,
+	data : function () { return { ns:{} } } ,
 	created : function () {
+		let self = this;
+		for (let i = 0; i < this.header_mapping.data.length ; i++ ) {
+			let h = this.header_mapping.data[i];
+			if ( typeof h.header.kind.WikiPage=='undefined' ) continue ;
+			let wiki = h.header.kind.WikiPage.wiki;
+			if ( wiki!='' ) wiki_namespaces.load_wiki(wiki,function(j){self.ns[wiki]=j;});
+		}
 	} ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
 	methods : {
+		header_has_parts(h) {
+			return h.header.kind!='PlainText';
+		}
 	}
 } ) ;
 </script>

@@ -1,7 +1,7 @@
 <?PHP
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+// ini_set('display_startup_errors', 1);
+// error_reporting(E_ALL);
 
 require_once ( "php/Widar.php" );
 
@@ -100,6 +100,56 @@ if ( $action == 'get_workflow' ) {
 	} else {
 		$j->status = 'Missing/bad workflow ID';
 	}
+
+} else if ( $action == 'get_external_header' ) {
+
+	$quarry_id = $tfc->getRequest('quarry_id','');
+	$psid = $tfc->getRequest('psid',''); # PetScan
+	$sparql = $tfc->getRequest('sparql','');
+
+	try {
+	
+		if ( $quarry_id!='' ) {
+
+			$url = "https://quarry.wmcloud.org/query/{$quarry_id}/result/latest/0/tsv";
+			$file = fopen($url,'r');
+			if ( isset($file) && $file ) {
+				$header = trim(fgets($file));
+				fclose($file);
+				$j->header = explode("\t",$header);
+			}
+
+		} else if ( $psid!='' ) {
+
+			# Generic header
+			$j->header = ["number","title","pageid","namespace","length","touched","img_size","img_width","img_height","img_media_type","img_major_mime","img_minor_mime","img_user_text","img_timestamp","img_sha1","image","coordinates","defaultsort","disambiguation","fileusage"];
+
+			# Actually run the query, slower
+			/*
+			$url = "https://petscan.wmflabs.org/?psid={$psid}&format=tsv";
+			$file = @fopen($url,'r');
+			$header = trim(fgets($file));
+			fclose($file);
+			$j->header = explode("\t",$header);
+			*/
+
+		} else if ( $sparql!='' ) {
+
+			# Parse from query; not perfect but...
+			$sparql = preg_replace('/\{.*$/','',$sparql);
+			# TODO ?x AS ?y
+			if ( preg_match_all('/\?([A-Za-z_][A-Za-z_0-9]*)/',$sparql,$m) ) {
+				$j->header = array_unique($m[1]) ;
+			}
+
+		}
+
+	} catch (Exception $e) {
+		$j->status = "UPSTREAM ERROR";
+	}
+
+	if ( $j->header==[""] ) $j->status = "UPSTREAM ERROR";
+	else if ( isset($j->header) ) $j->status = 'OK';
 
 } else if ( $action == 'download_file' ) {
 
