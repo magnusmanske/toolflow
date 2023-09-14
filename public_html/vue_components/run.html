@@ -23,6 +23,7 @@
                 <tr>
                     <th>File</th>
                     <th>Size</th>
+                    <th>Data rows</th>
                     <th>Expiration</th>
                     <th>Type</th>
                 </tr>
@@ -30,12 +31,13 @@
             <tbody>
                 <tr v-for='f in files'>
                     <td>
-                        <a :href="'./api.php?action=download_file&uuid='+f.uuid">
+                        <router-link :to="'/file/'+f.uuid">
                             <b v-if='f.is_output==1'>{{f.uuid}}</b>
                             <span v-else>{{f.uuid}}</span>
-                        </a>
+                        </router-link>
                     </td>
-                    <td>{{nice_size(f.size)}}</td>
+                    <td style='text-align: right; font-family: Courier;'>{{nice_size(f.size)}}</td>
+                    <td style='text-align: right; font-family: Courier;'>{{Intl.NumberFormat().format(f.rows-1)}}</td>
                     <td>{{f.expires}}</td>
                     <td>
                         <span v-if='f.is_output==1'><b>Result</b></span>
@@ -77,6 +79,7 @@ let Run = Vue.extend ( {
             else if ( x>1024*1024 ) { ret = x/(1024*1024); unit = "MB"; }
             else if ( x>1024 ) { ret = x/(1024); unit = "KB"; }
             if ( unit!="Bytes" ) ret = Math.round(ret*10)/10;
+            if ( ret==Math.floor(ret) ) ret = ''+ret+'.0';
             return ''+ret+unit;
         },
         is_logged_in() {

@@ -20,7 +20,7 @@
                         <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflows[r.workflow_id].user_id].name)" target="_blank" class="wikidata">{{users[workflows[r.workflow_id].user_id].name}}</a></td>
                     <td>{{r.status}}</td>
                     <td>
-                        <router-link :to="'/run/'+r.id">{{r.ts_last}}</router-link>
+                        <router-link v-if='typeof r.id!="undefined"' :to="'/run/'+r.id">{{r.ts_last}}</router-link>
                     </td>
                 </tr>
             </tbody>

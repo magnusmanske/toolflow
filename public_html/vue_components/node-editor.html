@@ -19,6 +19,12 @@
 							<textarea v-model="n.parameters.sparql" style="width: 100%;"></textarea>
 						</div>
 
+						<div v-else-if="n.kind=='PagePile'">
+							<div>
+								<label><span tt="pagepile_id"></span> <input type="text" v-model="n.parameters.pagepile_id"/></label>
+							</div>
+						</div>
+
 						<div v-else-if="n.kind=='Join'">
 							<div v-if="n.parameters.mode=='inner_join_on_key'">
 								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" /></label>
@@ -47,7 +53,7 @@
 				<tr v-if="n.header_mapping.data.length>0">
 					<th>Output<br/>mapping</th>
 					<td>
-						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options'></header-mapping>
+						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' @data-changed='header_data_changed(n,$event)'></header-mapping>
 					</td>
 				</tr>
 			</table>
@@ -69,6 +75,7 @@ Vue.component ( 'node-editor' , {
 		this.n = this.clone_node(this.node_id);
 		this.calculate_inputs();
 		this.set_header_ids();
+		current_node_data = this.n;
 	} ,
     updated : function () { tt.updateInterface(this.$el) ; } ,
     mounted : function () { tt.updateInterface(this.$el) ; } ,
@@ -88,6 +95,9 @@ Vue.component ( 'node-editor' , {
 			external_ids.load_node(self.n,function(header_options){
 				self.header_options=header_options;
 			});
+		},
+		header_data_changed(n,e) {
+			this.header_mapping = e;
 		}
 	}
 } ) ;

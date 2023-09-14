@@ -25,6 +25,7 @@ div.node-title {
 div.node-body {
     font-size: 9pt;
     line-height: 100%;
+    width: 100%;
     position: absolute;
     top: 20pt;
     bottom: 25px;
@@ -35,12 +36,15 @@ div.node-output {
     font-size: 9pt;
     line-height: 100%;
     position: absolute;
-    height: 20px;
+/*    height: 20px;*/
     bottom: 2px;
     left: 0px;
     right: 0px;
     padding: 2px;
     overflow: auto;
+}
+div.node-output-row {
+    border-bottom: 1px dotted #AAA;
 }
 span.node-output {
     margin-right: 5px;
@@ -52,36 +56,68 @@ span.node-output:last-of-type {
 div.node-selected {
     border: 3px solid #FFCCE1 !important;
 }
+div.node-file-rows {
+    text-align: center;
+/*    margin-top: 0.3rem;*/
+/*    border-top: 1px dotted #AAA;*/
+}
+div.run-box {
+    float: right;
+    border: 1px solid #DDD; 
+    padding: 1px; 
+    box-shadow: 0 10px 16px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19) !important;
+}
 </style>
 
 <template id='workflow-template'>
 <div class='container' id='workflow-container'>
     <div v-if="typeof workflow.name!='undefined'">
         <div style="float:right">
-            <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary">Published</button>
-            <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary">Draft</button>
+            <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary" tt="pubished"></button>
+            <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary" tt="draft"></button>
+            <div v-if="was_edited" tt="edited"></div>
         </div>
-        <h1>Workflow #{{workflow.id}}</h1>
-        <h2>{{workflow.name}}</h2>
-        <div>
+        <h2>
+            {{workflow.name}}
+            <small><a href='#' @click.prevent='workflow.name=edit_string(workflow.name)'>✎</a></small>
+        </h2>
+        <div style="height: 3.5rem;">
             by 
             <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflow.user_id].name)" target="_blank" class="wikidata">{{users[workflow.user_id].name}}</a>
+            <div v-if="run_id>-1" class="run-box">
+                <span tt="run"></span>
+                #<router-link :to="'/run/'+run_id">{{run_id}}</router-link>
+
+                <button v-if="run.status=='DONE'||run.status=='CANCEL'||run.status=='FAIL'" class="btn btn-outline-primary" tt="start" @click.prevent.stop="save_and_run_workflow()"></button>
+                <button v-else-if="run.status=='RUN'" class="btn btn-outline-danger" tt="cancel" @click.prevent.stop="cancel_run()"></button>
+                
+                <span v-if="run.status=='DONE'" class="badge badge-success">{{run.status}}</span>
+                <span v-else-if="run.status=='WAIT'" class="badge badge-secondary">{{run.status}}</span>
+                <span v-else-if="run.status=='RUN'" class="badge badge-primary">{{run.status}}</span>
+                <span v-else-if="run.status=='FAIL'" class="badge badge-danger">{{run.status}}</span>
+                <span v-else-if="run.status=='CANCEL'" class="badge badge-warning">{{run.status}}</span>
+                <span v-else class="badge badge-light">{{run.status}}</span>
+
+                <span style="font-family: Courier; margin-left: 1rem;">
+                    {{run.nodes_done}}/{{run.nodes_total}}
+                </span>
+            </div>
         </div>
         <div v-if='layout_done'>
-            <div v-if="current_node_id!=-1">
+            <div v-if="current_node_id>-1">
                 <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id"></node-editor>
             </div>
         </div>
 
-        <div v-if='layout_done' :style="'width:'+screen_width+'px;height:'+screen_height+'px;border:1px solid #DDD;padding:2px;position:relative;'">
+        <div v-if='layout_done' :style="'width:'+screen_width+'px;height:'+screen_height+'px;border:1px solid #DDD;padding:2px;position:relative;'" @click.prevent.stop="set_current_node(-1)">
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+e.y+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname1+' connector_bottom edge'"></div>
 
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h/2)+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname2+' edge'"></div>
 
-            <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click="current_node_id=node_id">
+            <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click.prevent.stop="set_current_node(node_id)">
                 <div class="node-title">
                     <div style="float:right;" v-if='node_ext_url(workflow.json.nodes[n.node_id])!=""'>
-                        <a :href="node_ext_url(workflow.json.nodes[n.node_id])" target="_blank" class="external">&#x1f517;</a>
+                        <a :href="node_ext_url(workflow.json.nodes[n.node_id])" target="_blank" class="external" tt_title="external_source" @click.stop=''>&#x1f517;</a>
                     </div>
                     #{{n.node_id+1}} {{workflow.json.nodes[n.node_id].kind}}
                 </div>
@@ -100,11 +136,18 @@ div.node-selected {
                         {{workflow.json.nodes[n.node_id]}}
                     </div>
                 </div>
-                <div v-if="workflow.json.nodes[n.node_id].header_mapping.data.length>0" class="node-output">
-                    <span>&rArr;</span>
-                    <span v-for="data in workflow.json.nodes[n.node_id].header_mapping.data" class="node-output">
-                        {{data.header.name}}
-                    </span>
+                <div class="node-output">
+                    <div v-if="workflow.json.nodes[n.node_id].header_mapping.data.length>0" class="node-output-row">
+                        <span>&rArr;</span>
+                        <span v-for="data in workflow.json.nodes[n.node_id].header_mapping.data" class="node-output">
+                            {{data.header.name}}
+                        </span>
+                    </div>
+                    <div v-if="typeof (files[n.node_id]??{}).uuid!='undefined'" class="node-file-rows">
+                        <a :href="'/#/file/'+files[n.node_id].uuid" target="_blank" tt_title="output_file" @click.stop=''>
+                            {{Intl.NumberFormat().format(files[n.node_id].rows-1)}} data rows
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -115,19 +158,28 @@ div.node-selected {
 <script>
 'use strict';
 
+let current_node_data = {};
+
 let Workflow = Vue.extend ( {
     props : ['id'] ,
-    data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}},
+    data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}}, was_edited:false, 
+            run_id:-1, run:{}, files:[],
             layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
     created : function () {
         if ( typeof this.id!='undefined' ) this.load_workflow(this.id);
-        else {} // TODO CREATE NEW WORKFLOW
+        else this.create_new_workflow();
     } ,
     updated : function () { tt.updateInterface(this.$el) ; } ,
     mounted : function () { tt.updateInterface(this.$el) ; } ,
     methods : {
         load_workflow(id) {
+            this.run = {};
+            this.run_id = -1;
+            this.files = [];
+            this.current_node_id = -1;
+            current_node_data = {};
+            this.was_edited = false;
             const myRequest = new Request("./api.php?action=get_workflow&id="+id);
             fetch(myRequest)
                 .then((response) => response.json())
@@ -136,12 +188,116 @@ let Workflow = Vue.extend ( {
                     this.users = data.users;
                     this.workflow = data.workflow;
                     this.run_layout();
-                    this.current_node_id = 0; // TESTING FIXME
+                    // this.current_node_id = 0; // TESTING
+                    this.run_id = data.last_run_id??-1;
+                    if ( this.run_id>-1 ) {
+                        this.load_run();
+                    }
                 })
                 .catch(console.error);
         },
+        create_new_workflow() {
+            const myRequest = new Request("./api.php?action=create_new_workflow");
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.$router.replace('/workflow/'+data.workflow_id);
+                })
+                .catch(console.error);
+
+        },
         node_ext_url(n) {
             return node_ext_url(n);
+        },
+        load_run(callback) {
+            if ( this.run_id<0 ) return ;
+            const myRequest = new Request("./api.php?action=get_run&id="+this.run_id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.run = data.run;
+                    this.files = data.files;
+                    // console.log(JSON.parse(JSON.stringify(data)));
+                    if ( typeof callback!='undefined' ) callback();
+                })
+                .catch(console.error);
+        },
+        save_and_run_workflow() {
+            if ( typeof this.workflow.id=='undefined' ) return; // TODO alert
+            this.update_current_node();
+            if ( this.was_edited ) return this.save_workflow();
+            if ( this.run_id<0 ) return this.create_new_run();
+            this.start_run();
+        },
+        create_new_run() {
+            // TODO
+            alert("create_new_run not implemented");
+            // THEN: this.save_and_run_workflow();
+        },
+        start_run() {
+            let nodes_to_reset = []; // TODO just the required ones
+            let nodes = this.workflow.json.nodes;
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) nodes_to_reset.push(node_id);
+
+            const myRequest = new Request("./api.php?action=start_run&id="+this.run_id+"&reset_nodes="+JSON.stringify(nodes_to_reset));
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    // console.log(JSON.parse(JSON.stringify(data)));
+
+                    let self = this;
+                    function keep_updating() {
+                        self.load_run(function(){
+                            if ( self.run.status=='DONE' || self.run.status=='FAIL' ) return ;
+                            setTimeout(keep_updating,1000);
+                        });
+                    }
+                    keep_updating();
+                })
+                .catch(console.error);            
+        },
+        save_workflow() {
+            if ( typeof this.workflow.id=='undefined' ) return; // TODO alert
+            const myRequest = new Request("./api.php?action=set_workflow&workflow="+JSON.stringify(this.workflow));
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.was_edited = false;
+                    this.save_and_run_workflow();
+                })
+                .catch(console.error);
+        },
+        update_current_node() {
+            if ( this.current_node_id>-1 ) {
+                let j_old = this.workflow.json.nodes[this.current_node_id];
+                let j_new = current_node_data;
+                if ( JSON.stringify(j_old) != JSON.stringify(j_new) ) {
+                    // console.log(JSON.stringify(j_new));
+                    this.workflow.json.nodes[this.current_node_id] = JSON.parse(JSON.stringify(j_new));
+                    this.was_edited = true;
+                }
+            }
+        },
+        cancel_run() {
+            const myRequest = new Request("./api.php?action=cancel_run&id="+this.run_id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log(JSON.parse(JSON.stringify(data)));
+                })
+                .catch(console.error);            
+        },
+        set_current_node(node_id) {
+            if ( node_id==this.current_node_id ) return;
+            this.update_current_node();
+            this.current_node_id = node_id;
+            return false;
+        },
+        edit_string(s) {
+            let ns = prompt(tt.t('new_value'), s);
+            if ( ns==null ) return s;
+            if ( s!=ns ) this.was_edited = true;
+            return ns;
         },
         run_layout() {
             this.screen_width = $('#workflow-container').width();

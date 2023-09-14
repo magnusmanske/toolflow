@@ -40,6 +40,7 @@ input[readonly].readonly {
 		<div v-for="h in header_mapping.data" class="header-box">
 			<div class="header-title">
 				{{h.header.name}}
+				<small><a href='#' @click.prevent='h.header.name=edit_string(h.header.name)'>✎</a></small>
 			</div>
 			<div v-if="typeof h.header.kind.WikiPage!='undefined'">
 				<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="wiki_page"></span></div>
@@ -50,7 +51,7 @@ input[readonly].readonly {
 						<span tt="namespace"></span>
 						<select v-model="h.header.kind.WikiPage.ns_id">
 							<option tt="no_default_namespace"></option>
-							<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @change="console.log('!!')">{{k}}: {{v.canonical}}</option>
+							<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @click="wp_namespace_changed(h)">{{k}}: {{v.canonical??'[MAIN NAMESPACE]'}}</option>
 						</select>
 					</div>
 					<div v-else>
@@ -117,6 +118,16 @@ Vue.component ( 'header-mapping' , {
 	methods : {
 		header_has_parts(h) {
 			return h.header.kind!='PlainText';
+		},
+		edit_string(s) {
+			let ns = prompt(tt.t('new_value'), s);
+			if ( ns==null ) return s;
+			if ( s!=ns ) this.$emit('data-changed',this.header_mapping) ;
+			return ns;
+		},
+		wp_namespace_changed(h) {
+			let new_namespace_prefix = this.ns[h.header.kind.WikiPage.wiki][h.header.kind.WikiPage.ns_id].canonical??'';
+			h.header.kind.WikiPage.ns_prefix = new_namespace_prefix;
 		}
 	}
 } ) ;

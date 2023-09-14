@@ -1,0 +1,95 @@
+<template id='file-template'>
+<div class='container'>
+	<h3>File {{uuid}}</h3>
+	<div v-if='rows.length>0'>
+		<div style="float: right;">
+			<div class="btn-group">
+			  <a type="button" class="btn btn-outline-primary" :href="'/api.php?action=download_file&uuid='+uuid">Download as JSONL</a>
+			  <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+			    <span class="sr-only">Toggle Dropdown</span>
+			  </button>
+			  <div class="dropdown-menu">
+			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=json&uuid='+uuid">JSON</a>
+<!-- 			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=tsv&uuid='+uuid">TSV</a>
+			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=csv&uuid='+uuid">CSV</a>
+ -->			  </div>
+			</div>
+		</div>
+		{{file.rows-1}} data rows, showing 1-{{rows.length-1}}
+	</div>
+
+	<div v-if='rows.length>0'>
+		<table class="table">
+			<thead>
+				<tr>
+					<th v-for='c in rows[0].columns'>
+						{{c.name}}
+					</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr v-for='row,rownum in rows' v-if='rownum>0'>
+					<td v-for='c in row'>
+						<span v-if="typeof c.WikiPage!='undefined'">
+							<span v-if="server(c.WikiPage)==''">
+								{{pagetitle(c.WikiPage)}}
+							</span>
+							<span v-else>
+								<a :href="'https://'+server(c.WikiPage)+'/wiki/'+pagetitle(c.WikiPage)" target="_blank" class="wiki">
+									{{pagetitle(c.WikiPage)}}
+								</a>
+							</span>
+						</span>
+						<span v-else-if="typeof c.PlainText!='undefined'">
+							{{c.PlainText}}
+						</span>
+						<span v-else>
+							{{c}}
+						</span>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let File = Vue.extend ( {
+    props : ['uuid'] ,
+    data : function () { return { file:{} , rows:[] } } ,
+    created : function () {
+    	this.load_file();
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+    	load_file() {
+            const myRequest = new Request("./api.php?action=file_info&max=25&uuid="+this.uuid);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    // console.log(JSON.parse(JSON.stringify(data)));
+                    this.rows = data.rows;
+                    this.file = data.file;
+                })
+                .catch(console.error);
+    	},
+    	server(wp) {
+    		if ( typeof wp.wiki=='undefined' || wp.wiki=='' ) return '';
+    		return wiki_namespaces.wiki2server(wp.wiki)??'';
+    	},
+    	pagetitle(wp) {
+    		if ( wp.prefixed_title??''!='' ) return wp.prefixed_title;
+    		if ( wp.title??''!='' ) {
+    			if ( wp.ns_prefix??''!='' ) return wp.ns_prefix+':'+wp.title;
+    			return wp.title;
+    		}
+    		return '';
+    	}
+    } ,
+    template:'#file-template'
+} ) ;
+</script>

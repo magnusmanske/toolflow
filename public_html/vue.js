@@ -14,6 +14,8 @@ let external_ids = {
             if ( typeof n.parameters.sparql!='undefined' ) this.load_external_header('sparql',n.parameters.sparql,callback);
         } else if ( n.kind=='PetScan' ) {
             if ( typeof n.parameters.psid!='undefined' ) this.load_external_header('psid',n.parameters.psid,callback);
+        } else if ( n.kind=='PagePile' ) {
+            if ( typeof n.parameters.pagepile_id!='undefined' ) this.load_external_header('pagepile_id',n.parameters.pagepile_id,callback);
         } else {
             callback([])
         }
@@ -42,20 +44,25 @@ let external_ids = {
 let wiki_namespaces = {
     cache: {},
 
-    load_wiki(wiki,callback) {
-        if ( typeof this.cache[wiki]!='undefined' ) {
-            if (typeof callback!='undefined') callback(this.cache[wiki]);
-            return;
-        }
-
-        let server = '' ;
+    wiki2server(wiki) {
+        let server;
         let capture ;
         if ( wiki=='wikidatawiki' ) server = 'www.wikidata.org';
         else if ( wiki=='commonswiki' ) server = 'commons.wikimedia.org';
         else if ( wiki=='metawiki' ) server = 'meta.wikimedia.org';
         else if ( (capture=wiki.match(/^(.+?)wiki$/)) !== null ) server = capture[0]+'.wikipedia.org';
         else if ( (capture=wiki.match(/^(.+?)(wik.+)$/)) !== null ) server = capture[0]+'.'+capture[1]+'.org';
-        else {
+        return server;
+    },
+
+    load_wiki(wiki,callback) {
+        if ( typeof this.cache[wiki]!='undefined' ) {
+            if (typeof callback!='undefined') callback(this.cache[wiki]);
+            return;
+        }
+
+        let server = this.wiki2server(wiki) ;
+        if ( typeof server=='undefined' ) {
             console.log("Can't find a server name for "+wiki);
             if (typeof callback!='undefined') callback({});
             return;
@@ -79,6 +86,7 @@ function node_ext_url(n) {
     if ( n.kind=='Sparql' && typeof n.parameters.sparql!='undefined' ) return 'https://query.wikidata.org/#'+encodeURIComponent(n.parameters.sparql);
     if ( n.kind=='Quarry' && typeof n.parameters.query_id!='undefined' ) return 'https://quarry.wmcloud.org/query/'+n.parameters.query_id;
     if ( n.kind=='PetScan' && typeof n.parameters.psid!='undefined' ) return 'https://petscan.toolforge.org/?psid='+n.parameters.psid;
+    if ( n.kind=='PagePile' && typeof n.parameters.pagepile_id!='undefined' ) return 'https://pagepile.toolforge.org/api.php?action=get_data&format=html&id='+n.parameters.pagepile_id;
     return '';
 }
 
@@ -94,6 +102,7 @@ $(document).ready ( function () {
             'vue_components/run.html',
             'vue_components/node-editor.html',
             'vue_components/header-mapping.html',
+            'vue_components/file.html',
             ] )
     ] )
     .then ( () => {
@@ -107,6 +116,7 @@ $(document).ready ( function () {
             { path: '/workflow/:id', component: Workflow , props:true },
             { path: '/workflows/:mode', component: Workflows , props:true },
             { path: '/run/:id', component: Run , props:true },
+            { path: '/file/:uuid', component: File , props:true },
           ] ;
           router = new VueRouter({routes}) ;
           app = new Vue ( { router } ) .$mount('#app') ;
