@@ -79,7 +79,7 @@ div.run-box {
         </div>
         <h2>
             {{workflow.name}}
-            <small><a href='#' @click.prevent='workflow.name=edit_string(workflow.name)'>✎</a></small>
+            <small v-if='can_edit()'><a href='#' @click.prevent='workflow.name=edit_string(workflow.name)'>✎</a></small>
         </h2>
         <div style="height: 3.5rem;">
             by 
@@ -103,9 +103,33 @@ div.run-box {
                 </span>
             </div>
         </div>
+
+        <div>
+            <nav class="navbar navbar-expand-lg navbar-light bg-light">
+                <span class="navbar-brand" tt="add_new_node"></span>
+                <div class="collapse navbar-collapse">
+                    <ul class="navbar-nav mr-auto">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tt="tools"></a>
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                <a v-for="kind in new_tools" class="dropdown-item" href="#" @click.prevent="new_node(kind)">{{kind}}</a>
+                            </div>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tt="joins"></a>
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                <a class="dropdown-item" href="#" @click.prevent="new_node('Join/inner_join_on_key')" tt="inner_join_on_key"></a>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+
         <div v-if='layout_done'>
+            <!-- {{workflow.json.nodes}} -->
             <div v-if="current_node_id>-1">
-                <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id"></node-editor>
+                <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id" :can_edit='can_edit()'></node-editor>
             </div>
         </div>
 
@@ -125,8 +149,19 @@ div.run-box {
                     <div v-if="workflow.json.nodes[n.node_id].kind=='Sparql'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.sparql}}</div>
                     </div>
-                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='Quarry'">
-                        Query #{{workflow.json.nodes[n.node_id].parameters.query_id}}
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='QuarryQuery'">
+                        Query {{workflow.json.nodes[n.node_id].parameters.quarry_query_id}}
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='PetScan'">
+                        PSID {{workflow.json.nodes[n.node_id].parameters.psid}}
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='PagePile'">
+                        PagePile ID {{workflow.json.nodes[n.node_id].parameters.pagepile_id}}
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='AListBuildingTool'">
+                        {{workflow.json.nodes[n.node_id].parameters.a_list_building_tool_wiki}}
+                        /
+                        {{workflow.json.nodes[n.node_id].parameters.a_list_building_tool_qid}}
                     </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Join'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.mode.replace(/_/g,' ')}}</div>
@@ -163,6 +198,7 @@ let current_node_data = {};
 let Workflow = Vue.extend ( {
     props : ['id'] ,
     data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}}, was_edited:false, 
+            new_tools:['AListBuildingTool','PagePile','PetScan','QuarryQuery','Sparql'],
             run_id:-1, run:{}, files:[],
             layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
@@ -196,6 +232,21 @@ let Workflow = Vue.extend ( {
                 })
                 .catch(console.error);
         },
+        new_node(key) {
+            let kind = key.replace(/\/.*$/,'');
+            let node = external_ids.new_node(kind);
+
+            if ( kind=="Join" ) {
+                node.parameters.mode = key.replace(/^.+\//,'');
+                if ( node.parameters.mode=="inner_join_on_key" ) node.parameters.join_key = '';
+            }
+
+            this.workflow.json.nodes.push(node);
+            this.files.push(undefined);
+            this.was_edited = true;
+            this.run_layout();
+            this.set_current_node(this.workflow.json.nodes.length-1);
+        },
         create_new_workflow() {
             const myRequest = new Request("./api.php?action=create_new_workflow");
             fetch(myRequest)
@@ -207,7 +258,7 @@ let Workflow = Vue.extend ( {
 
         },
         node_ext_url(n) {
-            return node_ext_url(n);
+            return external_ids.node_ext_url(n);
         },
         load_run(callback) {
             if ( this.run_id<0 ) return ;
@@ -373,6 +424,9 @@ let Workflow = Vue.extend ( {
             }
 
             this.layout_done = true;
+        },
+        can_edit() {
+            return ( widar.userinfo.id??0==this.workflow.user_id );
         },
         is_logged_in() {
             return widar.is_logged_in;

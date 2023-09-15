@@ -40,11 +40,19 @@ input[readonly].readonly {
 		<div v-for="h in header_mapping.data" class="header-box">
 			<div class="header-title">
 				{{h.header.name}}
-				<small><a href='#' @click.prevent='h.header.name=edit_string(h.header.name)'>✎</a></small>
+				<small v-if='can_edit'><a href='#' @click.prevent='h.header.name=edit_string(h.header.name)'>✎</a></small>
 			</div>
 			<div v-if="typeof h.header.kind.WikiPage!='undefined'">
 				<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="wiki_page"></span></div>
-				<div><label><span tt='wiki'></span> <input type='text' v-model='h.header.kind.WikiPage.wiki' /></label></div>
+				<div>
+					<label>
+						<span tt='wiki'></span>
+						<select v-model="h.header.kind.WikiPage.wiki" @change="update_wiki(h)">
+							<option value="" tt="no_default_namespace"></option>
+							<option v-for="site in wiki_namespaces.site_list" :value="site.wiki">{{site.label}}</option>
+						</select>
+					</label>
+				</div>
 
 				<div tt_title="namespace_column">
 					<div v-if="typeof ns[h.header.kind.WikiPage.wiki]!='undefined'">
@@ -102,20 +110,24 @@ input[readonly].readonly {
 
 Vue.component ( 'header-mapping' , {
 	template : '#header-mapping-template' ,
-	props : [ 'header_mapping','header_options' ] ,
+	props : [ 'header_mapping','header_options','can_edit' ] ,
 	data : function () { return { ns:{} } } ,
 	created : function () {
 		let self = this;
 		for (let i = 0; i < this.header_mapping.data.length ; i++ ) {
 			let h = this.header_mapping.data[i];
-			if ( typeof h.header.kind.WikiPage=='undefined' ) continue ;
-			let wiki = h.header.kind.WikiPage.wiki;
-			if ( wiki!='' ) wiki_namespaces.load_wiki(wiki,function(j){self.ns[wiki]=j;});
+			this.update_wiki(h);
 		}
 	} ,
     updated : function () { tt.updateInterface(this.$el) ; } ,
     mounted : function () { tt.updateInterface(this.$el) ; } ,
 	methods : {
+		update_wiki(h) {
+			if ( typeof h.header.kind.WikiPage=='undefined' ) return ;
+			let self = this;
+			let wiki = h.header.kind.WikiPage.wiki;
+			if ( wiki!='' ) wiki_namespaces.load_wiki(wiki,function(j){ Vue.set(self.ns,wiki,j); });
+		},
 		header_has_parts(h) {
 			return h.header.kind!='PlainText';
 		},

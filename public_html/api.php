@@ -35,7 +35,7 @@ function get_file_path($uuid) {
 function add_users() {
 	global $db , $user_ids , $j , $tfc ;
 	$j->users = [];
-	if ( count($user_ids)==0 ) return;
+	if ( count($user_ids)==0 or $user_ids==['']) return;
 	$user_ids = array_unique($user_ids);
 	$sql = "SELECT * FROM `user` WHERE `id` IN (".implode($user_ids).")" ;
 	ensure_db();
@@ -48,6 +48,7 @@ function get_user_id() {
 	try {
 		ensure_db();
 		$id = $widar->get_user_id()*1;
+		if ( !isset($id) ) return ;
 		$name = $widar->get_username();
 		$name = $db->real_escape_string ( $name ) ;
 		$sql = "REPLACE INTO `user` (`id`,`name`) VALUES ({$id},'{$name}')" ;
@@ -66,13 +67,14 @@ if ( $action == 'get_workflow' ) {
 	$id = $tfc->getRequest("id",0)*1;
 	if ( $id>0 ) {
 		$user_id = get_user_id();
-		$user_ids[] = $user_id;
+		if ( isset($user_id) ) $user_ids[] = $user_id;
 		$j->status = 'OK';
 		$sql = "SELECT * FROM `workflow` WHERE `id`={$id}" ;
 		ensure_db();
 		$result = $tfc->getSQL($db,$sql);
 		if($o = $result->fetch_object()) {
 			$o->json = json_decode($o->json);
+			$user_ids[] = $o->user_id;
 			$j->workflow = $o ;
 		} else $j->status = 'DB query failed';
 
@@ -194,16 +196,18 @@ if ( $action == 'get_workflow' ) {
 
 } else if ( $action == 'get_external_header' ) {
 
-	$quarry_id = $tfc->getRequest('quarry_id','');
+	$quarry_query_id = $tfc->getRequest('quarry_query_id','');
 	$psid = $tfc->getRequest('psid',''); # PetScan
 	$sparql = $tfc->getRequest('sparql','');
 	$pagepile_id = $tfc->getRequest('pagepile_id','');
+	$a_list_building_tool_wiki = $tfc->getRequest('a_list_building_tool_wiki','');
+	$a_list_building_tool_qid = $tfc->getRequest('a_list_building_tool_qid','');
 
 	try {
 	
-		if ( $quarry_id!='' ) {
+		if ( $quarry_query_id!='' ) {
 
-			$url = "https://quarry.wmcloud.org/query/{$quarry_id}/result/latest/0/tsv";
+			$url = "https://quarry.wmcloud.org/query/{$quarry_query_id}/result/latest/0/tsv";
 			$file = fopen($url,'r');
 			if ( isset($file) && $file ) {
 				$header = trim(fgets($file));
@@ -242,6 +246,12 @@ if ( $action == 'get_workflow' ) {
 			// Get wiki from PagePile; optional (slow)
 			$result = @json_decode(@file_get_contents("https://pagepile.toolforge.org/api.php?id={$pagepile_id}&action=get_data&doit&format=json"));
 			if ( isset($j) and isset($j->wiki) ) $j->wiki = $result->wiki;
+
+
+		} else if ( $a_list_building_tool_wiki!='' && $a_list_building_tool_qid!='' ) {
+
+			// Always the same
+			$j->header = ["title","qid"];
 
 		}
 
