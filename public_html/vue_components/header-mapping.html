@@ -24,7 +24,7 @@ div.header-mapping {
 div.header-mapping-title {
     font-weight: bold;
     border-bottom: 1px solid #DDD;	
-    background-color: #D7EEFF;
+    background-color: #D7FFEE;
 }
 input[readonly].readonly {
   background-color:#EEE;
@@ -58,8 +58,8 @@ input[readonly].readonly {
 					<div v-if="typeof ns[h.header.kind.WikiPage.wiki]!='undefined'">
 						<span tt="namespace"></span>
 						<select v-model="h.header.kind.WikiPage.ns_id">
-							<option tt="no_default_namespace"></option>
-							<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @click="wp_namespace_changed(h)">{{k}}: {{v.canonical??'[MAIN NAMESPACE]'}}</option>
+							<option tt="no_default_namespace" value="null"></option>
+							<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @click="wp_namespace_changed(h)">{{k}}: {{v.canonical??main_namespace_placeholder}}</option>
 						</select>
 					</div>
 					<div v-else>
@@ -111,9 +111,10 @@ input[readonly].readonly {
 Vue.component ( 'header-mapping' , {
 	template : '#header-mapping-template' ,
 	props : [ 'header_mapping','header_options','can_edit' ] ,
-	data : function () { return { ns:{} } } ,
+	data : function () { return { ns:{} , main_namespace_placeholder:'' } } ,
 	created : function () {
 		let self = this;
+		self.main_namespace_placeholder = tt.t('main_namespace_placeholder');
 		for (let i = 0; i < this.header_mapping.data.length ; i++ ) {
 			let h = this.header_mapping.data[i];
 			this.update_wiki(h);

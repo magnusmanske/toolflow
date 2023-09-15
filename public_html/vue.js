@@ -4,36 +4,15 @@ let router ;
 let app ;
 let wd = new WikiData() ;
 let external_ids = {
-    cache: {},
-    nodes:{
-        QuarryQuery: {
-            params:['quarry_query_id'],
-            ui: [{tag:"text",key:"quarry_query_id",label:"quarry_id"}],
-            url: 'https://quarry.wmcloud.org/query/{quarry_query_id}'
-        },
-        Sparql: {
-            params:['sparql'],
-            ui: [{tag:"textarea",key:"sparql"}],
-            url: 'https://query.wikidata.org/#{sparql}'
-        },
-        PetScan: {
-            params: ['psid'],
-            default_headers: ["WikiPage"],
-            ui: [{tag:"text",key:"psid"}],
-            url: 'https://petscan.toolforge.org/?psid={psid}'
-        },
-        PagePile: {
-            params: ['pagepile_id'],
-            default_headers: ["WikiPage"],
-            ui: [{tag:"text",key:"pagepile_id"}],
-            url: 'https://pagepile.toolforge.org/api.php?action=get_data&format=html&id={pagepile_id}'
-        },
-        AListBuildingTool: {
-            params: ['a_list_building_tool_wiki','a_list_building_tool_qid'],
-            default_headers: ["WikiPage","WikidataItem"],
-            ui: [{tag:"wiki",key:"a_list_building_tool_wiki",label:"wiki"},{tag:"text",key:"a_list_building_tool_qid",label:"qid"}],
-            url: 'https://a-list-bulding-tool.toolforge.org/API/?wiki_db={a_list_building_tool_wiki}&QID={a_list_building_tool_qid}'
-        },
+    header_cache: {},
+    nodes:{},
+
+    load_nodes_definition() {
+        const myRequest = new Request("/nodes.json");
+        fetch(myRequest)
+            .then((response) => response.json())
+            .then((data) => { this.nodes = data; })
+            .catch(console.error);
     },
 
     kind2params(kind) {
@@ -43,31 +22,27 @@ let external_ids = {
     load_node(n,callback) {
         if ( typeof (this.nodes[n.kind]??{}).params!='undefined' ) {
             let kv = [];
-            this.nodes[n.kind].params.forEach(function(key){
-                if ( n.parameters[key]??''!='' ) kv.push(key+'='+encodeURIComponent(n.parameters[key]));
-            });
-            if ( kv.length==this.nodes[n.kind].params ) { // All keys have non-blank values
-                return this.load_external_header(key,n.parameters[key],callback);
-            }
+            this.nodes[n.kind].params.forEach(function(key){ kv.push(key+'='+encodeURIComponent(n.parameters[key]??'')); });
+            return this.load_external_header(n.kind,kv,callback);
         }
         callback([]);
     },
 
-    load_external_header(mode,id,callback) {
-        if ( typeof this.cache[mode]!='undefined' && typeof this.cache[mode][id]!='undefined') {
-            if ( typeof callback!='undefined' ) callback(this.cache[mode][id]);
+    load_external_header(kind,parameters,callback) {
+        parameters.sort();
+        parameters = parameters.join('&');
+        let header_cache_key = kind+":"+parameters;
+        if ( typeof this.header_cache[header_cache_key]!='undefined') {
+            if ( typeof callback!='undefined' ) callback(this.header_cache[header_cache_key]);
             return;
         }
 
-        const myRequest = new Request("./api.php?action=get_external_header&"+mode+"="+id);
+        const myRequest = new Request("./api.php?action=get_external_header&kind="+kind+"&"+parameters);
         fetch(myRequest)
             .then((response) => response.json())
             .then((data) => {
-                if ( data.status=='OK' ) {
-                    if ( typeof this.cache[mode]=='undefined' ) this.cache[mode] = {};
-                    this.cache[mode][id] = data.header ;
-                }
-                if ( typeof callback!='undefined' ) callback((this.cache[mode]??{})[id]??[]);
+                if ( data.status=='OK' ) this.header_cache[header_cache_key] = data ;
+                if ( typeof callback!='undefined' ) callback(this.header_cache[header_cache_key]??{header:[]});
             })
             .catch(console.error);
     },
@@ -83,7 +58,7 @@ let external_ids = {
         // Initialize parameters as blank
         ((self.nodes[kind]??{}).params??[]).forEach(function(key){ node.parameters[key] = ''; });
 
-        ((self.nodes[kind]??{}).default_headers??[]).forEach(function(dh_kind){
+        ((self.nodes[kind]??{}).headers??[]).forEach(function(dh_kind){
             if ( dh_kind=="WikiPage" ) node.header_mapping.data.push ( self.get_wiki_page_header() );
             if ( dh_kind=="WikidataItem" ) {
                 let item = self.get_wiki_page_header();
@@ -93,6 +68,12 @@ let external_ids = {
                 node.header_mapping.data.push ( item );
             }
         });
+
+        if ( ((self.nodes[kind]??{}).mappings??[]).length>0 ) {
+            for ( let m = 0 ; m < self.nodes[kind].mappings.length; m++ ) {
+                node.header_mapping.data[m].mapping = self.nodes[kind].mappings[m];
+            }
+        }
 
         return node;
     },
@@ -148,8 +129,8 @@ let wiki_namespaces = {
         if ( wiki=='wikidatawiki' ) server = 'www.wikidata.org';
         else if ( wiki=='commonswiki' ) server = 'commons.wikimedia.org';
         else if ( wiki=='metawiki' ) server = 'meta.wikimedia.org';
-        else if ( (capture=wiki.match(/^(.+?)wiki$/)) !== null ) server = capture[0]+'.wikipedia.org';
-        else if ( (capture=wiki.match(/^(.+?)(wik.+)$/)) !== null ) server = capture[0]+'.'+capture[1]+'.org';
+        else if ( (capture=wiki.match(/^(.+?)wiki$/)) !== null ) server = capture[1]+'.wikipedia.org';
+        else if ( (capture=wiki.match(/^(.+?)(wik.+)$/)) !== null ) server = capture[1]+'.'+capture[2]+'.org';
         if ( typeof server!='undefined' ) return server;
 
         this.site_list.forEach(function(site){
@@ -216,7 +197,9 @@ let config = {
 	wikibase_api:"https://www.wikidata.org/w/api.php",
 } ;
 
+external_ids.load_nodes_definition();
 wiki_namespaces.fetch_sitematrix();
+
 $(document).ready ( function () {
 
     vue_components.toolname = 'toolflow' ;

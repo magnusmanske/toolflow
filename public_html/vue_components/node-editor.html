@@ -12,29 +12,29 @@ table.parameters td {
 			<table class="table">
 
 				<tr>
-					<th>Parameters</th>
+					<th tt="parameters"></th>
 					<td style="width: 100%;">
 						<table v-if="typeof external_ids.kind2params(n.kind)!='undefined'" class="parameters">
 							<tbody>
 								<tr v-for="param in external_ids.kind2params(n.kind)">
 									<td :tt="param.label??param.key"></td>
 									<td v-if="param.tag=='wiki'">
-										<select v-model="n.parameters[param.key]">
+										<select v-model="n.parameters[param.key]" @change='parameter_has_changed()'>
 											<option v-for="site in wiki_namespaces.site_list" :value="site.wiki">{{site.label}}</option>
 										</select>
 									</td>
 									<td v-if="param.tag=='text'">
-										<input type="text" v-model="n.parameters[param.key]"/>
+										<input type="text" v-model="n.parameters[param.key]" @change='parameter_has_changed()'/>
 									</td>
 									<td v-else-if="param.tag=='textarea'" style="width: 100%;">
-										<textarea v-model="n.parameters[param.key]" style="margin-left: 1rem;width: 100%;"></textarea>
+										<textarea v-model="n.parameters[param.key]" style="margin-left: 1rem;width: 100%;" @change='parameter_has_changed()'></textarea>
 									</td>
 								</tr>
 							</tbody>
 						</table>
 						<div v-else-if="n.kind=='Join'">
 							<div v-if="n.parameters.mode=='inner_join_on_key'">
-								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" /></label>
+								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" @change='parameter_has_changed()'/></label>
 							</div>
 							<div v-else>
 								UNKNOWN JOIN MODE {{n.parameters.mode}}
@@ -60,7 +60,7 @@ table.parameters td {
 				<tr v-if="n.header_mapping.data.length>0">
 					<th>Output<br/>mapping</th>
 					<td>
-						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' :can_edit='can_edit' @data-changed='header_data_changed(n,$event)'></header-mapping>
+						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' :can_edit='can_edit' @data-changed='header_data_changed(n,$event)' :key="JSON.stringify(n.header_mapping)+JSON.stringify(n.header_options)"></header-mapping>
 					</td>
 				</tr>
 			</table>
@@ -90,6 +90,19 @@ Vue.component ( 'node-editor' , {
 		clone_node(node_id) {
 			return JSON.parse(JSON.stringify(this.json.nodes[node_id]));
 		},
+		parameter_has_changed() {
+			if ( this.n.kind=='AListBuildingTool' ) {
+				let old_wiki = this.n.header_mapping.data[0].header.kind.WikiPage.wiki;
+				let new_wiki = this.n.parameters.a_list_building_tool_wiki;
+				if ( new_wiki!='' && new_wiki!=old_wiki ) {
+					this.n.header_mapping.data[0].header.kind.WikiPage.wiki = new_wiki;
+				}
+			// } else if ( this.n.kind=='PetScan' ) {
+			// 	this.set_header_ids();
+			} else if ( this.n.kind=='PagePile' ) {
+				this.set_header_ids();
+			}
+		},
 		calculate_inputs() {
 			this.inputs = [];
 			for ( let edge_id = 0 ; edge_id<this.json.edges.length ; edge_id++ ) {
@@ -100,7 +113,11 @@ Vue.component ( 'node-editor' , {
 		set_header_ids() {
 			let self = this;
 			external_ids.load_node(self.n,function(header_options){
-				self.header_options=header_options;
+				// console.log(JSON.stringify(header_options));
+				if ( (header_options.wiki??'')!='' ) {
+					if ( self.n.kind=='PagePile' ) self.n.header_mapping.data[0].header.kind.WikiPage.wiki = header_options.wiki;
+				}
+				self.header_options = header_options.header;
 			});
 		},
 		header_data_changed(n,e) {

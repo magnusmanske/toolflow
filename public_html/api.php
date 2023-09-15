@@ -196,6 +196,7 @@ if ( $action == 'get_workflow' ) {
 
 } else if ( $action == 'get_external_header' ) {
 
+	$kind = $tfc->getRequest('kind','');
 	$quarry_query_id = $tfc->getRequest('quarry_query_id','');
 	$psid = $tfc->getRequest('psid',''); # PetScan
 	$sparql = $tfc->getRequest('sparql','');
@@ -215,19 +216,21 @@ if ( $action == 'get_workflow' ) {
 				$j->header = explode("\t",$header);
 			}
 
-		} else if ( $psid!='' ) {
+		} else if ( $kind=='PetScan' ) {
 
 			# Generic header
 			$j->header = ["number","title","pageid","namespace","length","touched","img_size","img_width","img_height","img_media_type","img_major_mime","img_minor_mime","img_user_text","img_timestamp","img_sha1","image","coordinates","defaultsort","disambiguation","fileusage"];
 
-			# Actually run the query, slower
-			/*
-			$url = "https://petscan.wmflabs.org/?psid={$psid}&format=tsv";
-			$file = @fopen($url,'r');
-			$header = trim(fgets($file));
-			fclose($file);
-			$j->header = explode("\t",$header);
-			*/
+			# Actually run the query, but decativated because too slow
+			// if ( $psid!='' ) {
+			// 	$url = "https://petscan.wmflabs.org/?psid={$psid}&format=tsv";
+			// 	$j->url = $url ;
+			// 	$file = @fopen($url,'r');
+			// 	$header = trim(fgets($file));
+			// 	fclose($file);
+			// 	$j->header = explode("\t",$header);
+			// }
+			
 
 		} else if ( $sparql!='' ) {
 
@@ -238,17 +241,20 @@ if ( $action == 'get_workflow' ) {
 				$j->header = array_unique($m[1]) ;
 			}
 
-		} else if ( $pagepile_id!='' ) {
+		} else if ( $kind=='PagePile' ) {
 
 			// Always the same
 			$j->header = ["page"];
 
 			// Get wiki from PagePile; optional (slow)
-			$result = @json_decode(@file_get_contents("https://pagepile.toolforge.org/api.php?id={$pagepile_id}&action=get_data&doit&format=json"));
-			if ( isset($j) and isset($j->wiki) ) $j->wiki = $result->wiki;
+			if ( $pagepile_id!='' ) {
+				$url = "https://pagepile.toolforge.org/api.php?id={$pagepile_id}&action=get_data&doit&format=json";
+				$result = @json_decode(@file_get_contents($url));
+				if ( isset($result) and isset($result->wiki) ) $j->wiki = $result->wiki;
+			}
 
 
-		} else if ( $a_list_building_tool_wiki!='' && $a_list_building_tool_qid!='' ) {
+		} else if ( $kind=='AListBuildingTool' ) {
 
 			// Always the same
 			$j->header = ["title","qid"];
