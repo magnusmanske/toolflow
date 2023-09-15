@@ -73,9 +73,9 @@ div.run-box {
 <div class='container' id='workflow-container'>
     <div v-if="typeof workflow.name!='undefined'">
         <div style="float:right">
+            <button v-if="was_edited" class="btn btn-outline-primary" @click.prevent="save_workflow()" tt="save_changes"></button>
             <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary" tt="pubished"></button>
             <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary" tt="draft"></button>
-            <div v-if="was_edited" tt="edited"></div>
         </div>
         <h2>
             {{workflow.name}}
@@ -274,9 +274,10 @@ let Workflow = Vue.extend ( {
                 .catch(console.error);
         },
         save_and_run_workflow() {
-            if ( typeof this.workflow.id=='undefined' ) return; // TODO alert
+            let self = this;
+            if ( typeof this.workflow.id=='undefined' ) return alert("No workflow ID");
             this.update_current_node();
-            if ( this.was_edited ) return this.save_workflow();
+            if ( this.was_edited ) return this.save_workflow(function(){self.save_and_run_workflow()});
             if ( this.run_id<0 ) return this.create_new_run();
             this.start_run();
         },
@@ -307,14 +308,15 @@ let Workflow = Vue.extend ( {
                 })
                 .catch(console.error);            
         },
-        save_workflow() {
-            if ( typeof this.workflow.id=='undefined' ) return; // TODO alert
-            const myRequest = new Request("./api.php?action=set_workflow&workflow="+JSON.stringify(this.workflow));
+        save_workflow(callback) {
+            if ( typeof this.workflow.id=='undefined' ) return alert("No workflow ID");
+            this.update_current_node();
+            const myRequest = new Request("./api.php?action=set_workflow&workflow="+encodeURIComponent(JSON.stringify(this.workflow)));
             fetch(myRequest)
                 .then((response) => response.json())
                 .then((data) => {
                     this.was_edited = false;
-                    this.save_and_run_workflow();
+                    if ( typeof callback!='undefined' ) callback();
                 })
                 .catch(console.error);
         },

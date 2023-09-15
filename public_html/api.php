@@ -90,6 +90,7 @@ if ( $action == 'get_workflow' ) {
 } else if ( $action == 'set_workflow' ) {
 
 	$workflow = $tfc->getRequest('workflow','{}');
+	$j->status = "trying {$workflow}";
 	$workflow = json_decode($workflow);
 	$user_id = get_user_id();
 	if ( !isset($user_id) ) {
