@@ -41,6 +41,54 @@ table.parameters td {
 							</div>
 						</div>
 
+						<div v-else-if="n.kind=='Filter'">
+							<table>
+								<tbody>
+									<tr>
+										<td tt="filter_key"></td>
+										<td><input type="text" v-model="n.parameters.key" @change='parameter_has_changed()'/></td>
+									</tr>
+									<tr>
+										<td tt="filter_subkey"></td>
+										<td>
+											<select v-model="n.parameters.subkey" @change='parameter_has_changed()'>
+												<option value="" tt="n_a"></option>
+												<option value="title" tt="wp_title"></option>
+												<option value="prefixed_title" tt="wp_prefixed_title"></option>
+												<option value="ns_prefix" tt="wp_ns_prefix"></option>
+												<option value="wiki" tt="wp_wiki"></option>
+												<option value="ns_id" tt="wp_ns_id"></option>
+												<option value="page_id" tt="wp_page_id"></option>
+											</select>
+											<i tt="filter_subkey_note"></i>
+										</td>
+									</tr>
+									<tr>
+										<td tt="filter_operator"></td>
+										<td>
+											<select v-model="n.parameters.operator" @change='parameter_has_changed()'>
+												<option value="Equal">=</option>
+												<option value="Unequal">!=</option>
+												<option value="LargerThan">&gt;</option>
+												<option value="SmallerThan">&lt;</option>
+												<option value="LargerOrEqualThan">>=</option>
+												<option value="SmallerOrEqualThan"><=</option>
+												<option value="Regexp" tt="regular_expression"></option>
+											</select>
+										</td>
+									</tr>
+									<tr>
+										<td tt="filter_value"></td>
+										<td><input type="text" v-model="n.parameters.value" @change='parameter_has_changed()'/></td>
+									</tr>
+									<tr>
+										<td tt="filter_remove_matching"></td>
+										<td><input type="checkbox" v-model="n.parameters.remove_matching" @change='parameter_has_changed()'/></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
 						<div v-else>
 							<div>UNKNOWN TYPE {{n.kind}}</div>
 							{{n}}
@@ -48,17 +96,43 @@ table.parameters td {
 					</td>
 				</tr>
 
-				<tr v-if="inputs.length>0">
-					<th>Inputs</th>
+				<tr v-if="potential_inputs()>0">
+					<th tt="inputs"></th>
 					<td>
-						<div v-for="input_node_id,slot in inputs">
-							Slot {{slot+1}}: node {{input_node_id+1}} [{{json.nodes[input_node_id].kind}}]
+						<table v-if="inputs.length>0">
+							<thead>
+								<tr>
+									<th tt="input_slot"></th>
+									<th tt="input_node"></th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr v-for="input_node_id,slot in inputs">
+									<td>
+										#{{slot+1}}
+									</td>
+									<td>
+										#{{input_node_id+1}} {{json.nodes[input_node_id].kind}}
+									</td>
+									<td>
+										<button class="btn btn-sm btn-outline-danger" tt="remove_input" @click.prevent.stop="remove_edge(input_node_id)"></button>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<div v-if="potential_inputs()>inputs.length">
+							<select v-model="new_source_node">
+								<option v-for="i in potential_outputs()" :value="i.source_node">
+									{{i.name}}
+								</option>
+							</select>
+							<button class="btn btn-outline-success" tt="add_input" @click.prevent.stop="add_input"></button>
 						</div>
 					</td>
 				</tr>
 
 				<tr v-if="n.header_mapping.data.length>0">
-					<th>Output<br/>mapping</th>
+					<th tt="output_mapping"></th>
 					<td>
 						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' :can_edit='can_edit' @data-changed='header_data_changed(n,$event)' :key="JSON.stringify(n.header_mapping)+JSON.stringify(n.header_options)"></header-mapping>
 					</td>
@@ -77,7 +151,7 @@ table.parameters td {
 Vue.component ( 'node-editor' , {
 	template : '#node-editor-template' ,
 	props : [ 'json','node_id','external_headers','can_edit' ] ,
-	data : function () { return { n:{} , inputs:[] , header_options:[] } } ,
+	data : function () { return { n:{} , inputs:[] , header_options:[] , new_source_node:0 } } ,
 	created : function () {
 		this.n = this.clone_node(this.node_id);
 		this.calculate_inputs();
@@ -89,6 +163,28 @@ Vue.component ( 'node-editor' , {
 	methods : {
 		clone_node(node_id) {
 			return JSON.parse(JSON.stringify(this.json.nodes[node_id]));
+		},
+		potential_inputs() {
+			if ( this.n.kind=="Join" ) return Number.MAX_SAFE_INTEGER;
+			if ( this.n.kind=="Filter" ) return 1;
+			return 0;
+		},
+		potential_outputs() {
+			let self = this ;
+			let ret = [];
+			(self.json.nodes??[]).forEach ( function(node,node_id) {
+				if ( node_id==self.node_id ) return ;
+				let o = {source_node:node_id, name:"#"+(node_id+1)+" "+node.kind };
+				ret.push(o);
+			});
+			return ret;
+		},
+		add_input() {
+			let edge = { source_node:this.new_source_node , target_node:this.node_id, target_slot:this.inputs.length };
+			this.$emit('add-edge',edge) ;
+		},
+		remove_edge(input_node_id) {
+			alert("TODO");
 		},
 		parameter_has_changed() {
 			if ( this.n.kind=='AListBuildingTool' ) {

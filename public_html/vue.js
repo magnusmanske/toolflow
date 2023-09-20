@@ -11,7 +11,9 @@ let external_ids = {
         const myRequest = new Request("/nodes.json");
         fetch(myRequest)
             .then((response) => response.json())
-            .then((data) => { this.nodes = data; })
+            .then((data) => {
+                this.nodes = data.nodes;
+            })
             .catch(console.error);
     },
 

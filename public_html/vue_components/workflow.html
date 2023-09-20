@@ -62,6 +62,7 @@ div.node-file-rows {
 /*    border-top: 1px dotted #AAA;*/
 }
 div.run-box {
+    display:flex;
     float: right;
     border: 1px solid #DDD; 
     padding: 1px; 
@@ -84,23 +85,28 @@ div.run-box {
         <div style="height: 3.5rem;">
             by 
             <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflow.user_id].name)" target="_blank" class="wikidata">{{users[workflow.user_id].name}}</a>
-            <div v-if="run_id>-1" class="run-box">
-                <span tt="run"></span>
-                #<router-link :to="'/run/'+run_id">{{run_id}}</router-link>
+            <div class="run-box">
+                <div style="margin-right: 1rem;">
+                    <button class="btn btn-outline-success" tt="create_new_run" @click.prevent.stop="create_new_run()"></button>
+                </div>
+                <div v-if="run_id>-1">
+                    <span tt="run"></span>
+                    #<router-link :to="'/run/'+run_id">{{run_id}}</router-link>
 
-                <button v-if="run.status=='DONE'||run.status=='CANCEL'||run.status=='FAIL'" class="btn btn-outline-primary" tt="start" @click.prevent.stop="save_and_run_workflow()"></button>
-                <button v-else-if="run.status=='RUN'" class="btn btn-outline-danger" tt="cancel" @click.prevent.stop="cancel_run()"></button>
-                
-                <span v-if="run.status=='DONE'" class="badge badge-success">{{run.status}}</span>
-                <span v-else-if="run.status=='WAIT'" class="badge badge-secondary">{{run.status}}</span>
-                <span v-else-if="run.status=='RUN'" class="badge badge-primary">{{run.status}}</span>
-                <span v-else-if="run.status=='FAIL'" class="badge badge-danger">{{run.status}}</span>
-                <span v-else-if="run.status=='CANCEL'" class="badge badge-warning">{{run.status}}</span>
-                <span v-else class="badge badge-light">{{run.status}}</span>
+                    <button v-if="run.status=='DONE'||run.status=='CANCEL'||run.status=='FAIL'" class="btn btn-outline-primary" tt="start" @click.prevent.stop="save_and_run_workflow()"></button>
+                    <button v-else-if="run.status=='RUN'" class="btn btn-outline-danger" tt="cancel" @click.prevent.stop="cancel_run()"></button>
+                    
+                    <span v-if="run.status=='DONE'" class="badge badge-success">{{run.status}}</span>
+                    <span v-else-if="run.status=='WAIT'" class="badge badge-secondary">{{run.status}}</span>
+                    <span v-else-if="run.status=='RUN'" class="badge badge-primary">{{run.status}}</span>
+                    <span v-else-if="run.status=='FAIL'" class="badge badge-danger">{{run.status}}</span>
+                    <span v-else-if="run.status=='CANCEL'" class="badge badge-warning">{{run.status}}</span>
+                    <span v-else class="badge badge-light">{{run.status}}</span>
 
-                <span style="font-family: Courier; margin-left: 1rem;">
-                    {{run.nodes_done}}/{{run.nodes_total}}
-                </span>
+                    <span style="font-family: Courier; margin-left: 1rem;">
+                        {{run.nodes_done}}/{{run.nodes_total}}
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -116,9 +122,10 @@ div.run-box {
                             </div>
                         </li>
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tt="joins"></a>
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tt="operators"></a>
                             <div class="dropdown-menu" aria-labelledby="navbarDropdown">
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Join/inner_join_on_key')" tt="inner_join_on_key"></a>
+                                <a class="dropdown-item" href="#" @click.prevent="new_node('Filter')" tt="filter"></a>
                             </div>
                         </li>
                     </ul>
@@ -129,7 +136,7 @@ div.run-box {
         <div v-if='layout_done'>
             <!-- {{workflow.json.nodes}} -->
             <div v-if="current_node_id>-1">
-                <node-editor :key="'node_container_'+current_node_id" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id" :can_edit='can_edit()'></node-editor>
+                <node-editor :key="'node_container_'+current_node_id+JSON.stringify(workflow.json)" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id" :can_edit='can_edit()' @add-edge="add_edge($event)"></node-editor>
             </div>
         </div>
 
@@ -166,6 +173,19 @@ div.run-box {
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Join'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.mode.replace(/_/g,' ')}}</div>
                         <div>on <i>{{workflow.json.nodes[n.node_id].parameters.join_key}}</i></div>
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='Filter'">
+                        <b>
+                            <span v-if="workflow.json.nodes[n.node_id].parameters.remove_matching" tt="remove"></span>
+                            <span v-else tt="keep"></span>
+                        </b>
+                        {{workflow.json.nodes[n.node_id].parameters.key}}
+                        <span v-if="workflow.json.nodes[n.node_id].parameters.subkey!=''">
+                            / {{workflow.json.nodes[n.node_id].parameters.subkey}}
+                        </span>
+                        <br />
+                        <span><i>{{workflow.json.nodes[n.node_id].parameters.operator}}</i></span>
+                        <span><tt>{{workflow.json.nodes[n.node_id].parameters.value}}</tt></span>
                     </div>
                     <div v-else>
                         {{workflow.json.nodes[n.node_id]}}
@@ -240,6 +260,13 @@ let Workflow = Vue.extend ( {
                 node.parameters.mode = key.replace(/^.+\//,'');
                 if ( node.parameters.mode=="inner_join_on_key" ) node.parameters.join_key = '';
             }
+            if ( kind=="Filter" ) {
+                node.parameters.key = "";
+                node.parameters.subkey = "";
+                node.parameters.operator = "Equal";
+                node.parameters.value = "";
+                node.parameters.remove_matching = false;
+            }
 
             this.workflow.json.nodes.push(node);
             this.files.push(undefined);
@@ -281,10 +308,18 @@ let Workflow = Vue.extend ( {
             if ( this.run_id<0 ) return this.create_new_run();
             this.start_run();
         },
-        create_new_run() {
-            // TODO
-            alert("create_new_run not implemented");
-            // THEN: this.save_and_run_workflow();
+        create_new_run(callback) {
+            const myRequest = new Request("./api.php?action=create_new_run&id="+this.workflow.id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    // console.log(JSON.parse(JSON.stringify(data)));
+                    if ( data.status=='OK' ) {
+                        this.run_id = data.run_id;
+                        this.load_run(callback);
+                    } else alert(data.status);
+                })
+                .catch(console.error);
         },
         start_run() {
             let nodes_to_reset = []; // TODO just the required ones
@@ -377,35 +412,63 @@ let Workflow = Vue.extend ( {
                 this.layout.edges.push(o);
             }
 
-            for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {
-                let e = edges[edge_id];
-                this.layout.nodes[e.target_node].calc_cols.push(this.layout.nodes[e.source_node].col);
-            }
-
             let node_width = this.screen_width/(nodes.length+1); 
             let node_height = this.screen_height/(max_row+2);
 
-            let max_x = 0;
+            // Compute base layout
             for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
                 let n = this.layout.nodes[node_id];
-                if ( n.calc_cols.length>0 ) {
-                    let sum = 0 ;
-                    n.calc_cols.forEach(function(item, index) { sum += item ; });
-                    n.col = sum/n.calc_cols.length;
-                }
-                n.x = Math.floor(n.col * (this.screen_width/nodes.length))+2;
                 n.w = Math.floor(node_width)+2;
                 n.y = Math.floor(n.row * (this.screen_height/(max_row+1)));
                 n.h = Math.floor(node_height);
-                if ( max_x < n.x+n.w ) max_x = n.x+n.w ;
             }
 
+            // Compute position of nodes that depend on other nodes
+            let nodes_in_row = [];
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                let row = this.layout.nodes[node_id].row;
+                if ( typeof nodes_in_row[row]=='undefined' ) nodes_in_row[row] = 1;
+                else nodes_in_row[row]++;
+            }
+            let again = true ;
+            while ( again ) {
+                again = false;
+                for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                    this.layout.nodes[node_id].calc_cols = [];
+                }
+                for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {
+                    let e = edges[edge_id];
+                    this.layout.nodes[e.target_node].calc_cols.push(this.layout.nodes[e.source_node].col);
+                }
+                for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                    let row = this.layout.nodes[node_id].row;
+                    let n = this.layout.nodes[node_id];
+                    if ( nodes_in_row[row]==1 && n.calc_cols.length>0 ) {
+                        let sum = 0 ;
+                        n.calc_cols.forEach(function(item, index) { sum += item ; });
+                        n.col = sum/n.calc_cols.length;
+                    }
+                    let new_x = Math.floor(n.col * (this.screen_width/nodes.length))+2 ;
+                    if (n.x!=new_x) {
+                        n.x = new_x;
+                        again = true;
+                    }
+                }
+            }
+
+            // Shift nodes to the right so that the entire tree is centered
+            let max_x = 0;
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                let n = this.layout.nodes[node_id];
+                if ( max_x < n.x+n.w ) max_x = n.x+n.w ;
+            }
             let margin_left = Math.floor ( ( this.screen_width - max_x ) / 2 ) ;
             for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
                 this.layout.nodes[node_id].x += margin_left ;
                 this.layout.nodes[node_id].y += 2 ;
             }
 
+            // Layout edges
             for ( let edge_id = 0 ; edge_id<edges.length ; edge_id++ ) {
                 let e = this.layout.edges[edge_id];
                 let ns = this.layout.nodes[e.source];
@@ -426,6 +489,11 @@ let Workflow = Vue.extend ( {
             }
 
             this.layout_done = true;
+        },
+        add_edge(edge) {
+            this.workflow.json.edges.push(edge);
+            this.was_edited = true;
+            this.run_layout();
         },
         can_edit() {
             return ( widar.userinfo.id??0==this.workflow.user_id );

@@ -67,7 +67,6 @@ if ( $action == 'get_workflow' ) {
 	$id = $tfc->getRequest("id",0)*1;
 	if ( $id>0 ) {
 		$user_id = get_user_id();
-		if ( isset($user_id) ) $user_ids[] = $user_id;
 		$j->status = 'OK';
 		$sql = "SELECT * FROM `workflow` WHERE `id`={$id}" ;
 		ensure_db();
@@ -83,6 +82,7 @@ if ( $action == 'get_workflow' ) {
 		if($o = $result->fetch_object()) {
 			$j->last_run_id = $o->id;
 		}
+		add_users();
 	} else {
 		$j->status = 'Missing/bad workflow ID';
 	}
@@ -128,6 +128,18 @@ if ( $action == 'get_workflow' ) {
 			$tfc->getSQL($db,$sql);
 		} else $j->status = "Could not create new workflow";
 	}
+
+} else if ( $action == 'create_new_run' ) {
+
+	$workflow_id = $tfc->getRequest("id",0)*1;
+	if ( $workflow_id>0 ) {
+		ensure_db();
+		$sql = "INSERT INTO `run` (`status`,`workflow_id`,`ts_created`,`details`) VALUES ('DONE',{$workflow_id},NOW(),'[]')";
+		$tfc->getSQL($db,$sql);
+		$j->run_id = $db->insert_id;
+		$j->status = 'OK';
+	} else $j->status = "Bad workflow ID: {$workflow_id}" ;
+
 
 } else if ( $action == 'cancel_run' ) {
 
@@ -220,7 +232,7 @@ if ( $action == 'get_workflow' ) {
 		} else if ( $kind=='PetScan' ) {
 
 			# Generic header
-			$j->header = ["number","title","pageid","namespace","length","touched","img_size","img_width","img_height","img_media_type","img_major_mime","img_minor_mime","img_user_text","img_timestamp","img_sha1","image","coordinates","defaultsort","disambiguation","fileusage"];
+			$j->header = ["page_title","page_namespace","page_id"];
 
 			# Actually run the query, but decativated because too slow
 			// if ( $psid!='' ) {

@@ -1,33 +1,35 @@
 {
-    "QuarryQuery": {
-        "params":["quarry_query_id"],
-        "ui": [{"tag":"text","key":"quarry_query_id","label":"quarry_id"}],
-        "url": "https://quarry.wmcloud.org/query/{quarry_query_id}"
-    },
-    "Sparql": {
-        "params":["sparql"],
-        "ui": [{"tag":"textarea","key":"sparql"}],
-        "url": "https://query.wikidata.org/#{sparql}"
-    },
-    "PetScan": {
-        "params": ["psid"],
-        "headers": ["WikiPage"],
-        "ui": [{"tag":"text","key":"psid"}],
-        "url": "https://petscan.toolforge.org/?psid={psid}",
-        "mappings": [ [["title","title"],["pageid","page_id"],["namespace","ns_id"]] ]
-    },
-    "PagePile": {
-        "params": ["pagepile_id"],
-        "headers": ["WikiPage"],
-        "ui": [{"tag":"text","key":"pagepile_id"}],
-        "url": "https://pagepile.toolforge.org/api.php?action=get_data&format=html&id={pagepile_id}",
-        "mappings":[ [["page","prefixed_title"]] ]
-    },
-    "AListBuildingTool": {
-        "params": ["a_list_building_tool_wiki","a_list_building_tool_qid"],
-        "headers": ["WikiPage","WikidataItem"],
-        "ui": [{"tag":"wiki","key":"a_list_building_tool_wiki","label":"wiki"},{"tag":"text","key":"a_list_building_tool_qid","label":"qid"}],
-        "url": "https://a-list-bulding-tool.toolforge.org/API/?wiki_db={a_list_building_tool_wiki}&QID={a_list_building_tool_qid}",
-        "mappings": [ [["title","prefixed_title"]], [["qid","prefixed_title"]] ]
+    "nodes": {
+        "QuarryQuery": {
+            "params":["quarry_query_id"],
+            "ui": [{"tag":"text","key":"quarry_query_id","label":"quarry_id"}],
+            "url": "https://quarry.wmcloud.org/query/{quarry_query_id}"
+        },
+        "Sparql": {
+            "params":["sparql"],
+            "ui": [{"tag":"textarea","key":"sparql"}],
+            "url": "https://query.wikidata.org/#{sparql}"
+        },
+        "PetScan": {
+            "params": ["psid"],
+            "headers": ["WikiPage"],
+            "ui": [{"tag":"text","key":"psid"}],
+            "url": "https://petscan.toolforge.org/?psid={psid}",
+            "mappings": [ [["page_title","title"],["page_id","page_id"],["page_namespace","ns_id"]] ]
+        },
+        "PagePile": {
+            "params": ["pagepile_id"],
+            "headers": ["WikiPage"],
+            "ui": [{"tag":"text","key":"pagepile_id"}],
+            "url": "https://pagepile.toolforge.org/api.php?action=get_data&format=html&id={pagepile_id}",
+            "mappings":[ [["page","prefixed_title"]] ]
+        },
+        "AListBuildingTool": {
+            "params": ["a_list_building_tool_wiki","a_list_building_tool_qid"],
+            "headers": ["WikiPage","WikidataItem"],
+            "ui": [{"tag":"wiki","key":"a_list_building_tool_wiki","label":"wiki"},{"tag":"text","key":"a_list_building_tool_qid","label":"qid"}],
+            "url": "https://a-list-bulding-tool.toolforge.org/API/?wiki_db={a_list_building_tool_wiki}&QID={a_list_building_tool_qid}",
+            "mappings": [ [["title","prefixed_title"]], [["qid","prefixed_title"]] ]
+        }
     }
 }
