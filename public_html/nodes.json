@@ -1,6 +1,6 @@
 {
     "nodes": {
-        "QuarryQuery": {
+        "QuarryQueryLatest": {
             "params":["quarry_query_id"],
             "ui": [{"tag":"text","key":"quarry_query_id","label":"quarry_id"}],
             "url": "https://quarry.wmcloud.org/query/{quarry_query_id}"

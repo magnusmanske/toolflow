@@ -7,6 +7,9 @@ table.parameters td {
 <template id='node-editor-template'>
 <div class="card" style="margin-bottom:1rem;">
 	<div class="card-body" :key="'node_'+node_id">
+		<div style="float:right;">
+			<button class="btn btn-outline-danger" tt="delete_node" @click.prevent.stop="delete_node()"></button>
+		</div>
 		<h5 class="card-title">Node #{{node_id+1}}: {{n.kind}}</h5>
 		<div class="card-text">
 			<table class="table">
@@ -34,6 +37,9 @@ table.parameters td {
 						</table>
 						<div v-else-if="n.kind=='Join'">
 							<div v-if="n.parameters.mode=='inner_join_on_key'">
+								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" @change='parameter_has_changed()'/></label>
+							</div>
+							<div v-if="n.parameters.mode=='merge_unique'">
 								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" @change='parameter_has_changed()'/></label>
 							</div>
 							<div v-else>
@@ -184,7 +190,7 @@ Vue.component ( 'node-editor' , {
 			this.$emit('add-edge',edge) ;
 		},
 		remove_edge(input_node_id) {
-			alert("TODO");
+			this.$emit('remove-edge',{source_node:input_node_id,target_node:this.node_id}) ;
 		},
 		parameter_has_changed() {
 			if ( this.n.kind=='AListBuildingTool' ) {
@@ -215,6 +221,9 @@ Vue.component ( 'node-editor' , {
 				}
 				self.header_options = header_options.header;
 			});
+		},
+		delete_node() {
+			this.$emit('delete-node',this.node_id) ;
 		},
 		header_data_changed(n,e) {
 			this.header_mapping = e;

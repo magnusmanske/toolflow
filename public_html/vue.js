@@ -232,7 +232,7 @@ $(document).ready ( function () {
           ] ;
           router = new VueRouter({routes}) ;
           app = new Vue ( { router } ) .$mount('#app') ;
-          $('#help_page').attr('href',wd.page_path.replace(/\$1/,config.source_page));
+          $('#help_page').attr('href','https://meta.wikimedia.org/wiki/ToolFlow');
         } ) ;
 
     } ) ;

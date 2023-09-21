@@ -22,6 +22,18 @@ div.node-title {
     border-bottom: 1px solid #DDD;
     background-color: #D7EEFF;
 }
+div.node-title-failed {
+    background-color: #FFA4BB !important;
+}
+div.node-title-waiting {
+    background-color: #CCCCCC !important;
+}
+div.node-title-running {
+    background-color: #A4FFBB !important;
+}
+div.node-title-cancel {
+    background-color: #FDFD96 !important;
+}
 div.node-body {
     font-size: 9pt;
     line-height: 100%;
@@ -54,7 +66,8 @@ span.node-output:last-of-type {
     border-right: none;
 }
 div.node-selected {
-    border: 3px solid #FFCCE1 !important;
+    border: 9px solid #AAC0DD !important;
+    border-radius: 15px;
 }
 div.node-file-rows {
     text-align: center;
@@ -77,24 +90,39 @@ div.run-box {
             <button v-if="was_edited" class="btn btn-outline-primary" @click.prevent="save_workflow()" tt="save_changes"></button>
             <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary" tt="pubished"></button>
             <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary" tt="draft"></button>
+            <button v-if="is_logged_in()" class="btn btn-outline-success" tt="fork_workflow" @click.prevent.stop="fork_workflow"></button>
         </div>
         <h2>
             {{workflow.name}}
             <small v-if='can_edit()'><a href='#' @click.prevent='workflow.name=edit_string(workflow.name)'>✎</a></small>
         </h2>
+        <div v-if="forked_from!=0">
+            <span tt="forked_from_workflow"></span> #<router-link :to="'/workflow/'+forked_from">{{forked_from}}</router-link>
+        </div>
         <div style="height: 3.5rem;">
             by 
             <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflow.user_id].name)" target="_blank" class="wikidata">{{users[workflow.user_id].name}}</a>
             <div class="run-box">
-                <div style="margin-right: 1rem;">
+                <div v-if="!(run_id>-1)">
                     <button class="btn btn-outline-success" tt="create_new_run" @click.prevent.stop="create_new_run()"></button>
                 </div>
-                <div v-if="run_id>-1">
-                    <span tt="run"></span>
-                    #<router-link :to="'/run/'+run_id">{{run_id}}</router-link>
+                <div v-else>
+                    <button type="button" class="btn btn-outline-secondary" disabled>
+                        <span tt="run"></span>
+                        <router-link class="badge badge-light" :to="'/run/'+run_id">#{{run_id}}</router-link>
+                    </button>
+                    
+                    
+                    <div class="btn-group">
+                        <button v-if="run.status=='DONE'||run.status=='CANCEL'||run.status=='FAIL'" class="btn btn-outline-primary" tt="start" tt_title="start_title" @click.prevent.stop="save_and_run_workflow()"></button>
+                        <button v-else-if="run.status=='RUN'" class="btn btn-outline-danger" tt="cancel" @click.prevent.stop="cancel_run()"></button>
 
-                    <button v-if="run.status=='DONE'||run.status=='CANCEL'||run.status=='FAIL'" class="btn btn-outline-primary" tt="start" @click.prevent.stop="save_and_run_workflow()"></button>
-                    <button v-else-if="run.status=='RUN'" class="btn btn-outline-danger" tt="cancel" @click.prevent.stop="cancel_run()"></button>
+                        <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                        <div class="dropdown-menu">
+                            <a class="btn btn-outline-success" tt="create_new_run" @click.prevent.stop="create_new_run()"></a>
+                            <a class="btn btn-outline-warning" href='#' @click.prevent.stop="clear_files()" tt="clear_all_files"></a>
+                        </div>
+                    </div>
                     
                     <span v-if="run.status=='DONE'" class="badge badge-success">{{run.status}}</span>
                     <span v-else-if="run.status=='WAIT'" class="badge badge-secondary">{{run.status}}</span>
@@ -125,6 +153,7 @@ div.run-box {
                             <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tt="operators"></a>
                             <div class="dropdown-menu" aria-labelledby="navbarDropdown">
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Join/inner_join_on_key')" tt="inner_join_on_key"></a>
+                                <a class="dropdown-item" href="#" @click.prevent="new_node('Join/merge_unique')" tt="merge_unique"></a>
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Filter')" tt="filter"></a>
                             </div>
                         </li>
@@ -133,20 +162,13 @@ div.run-box {
             </nav>
         </div>
 
-        <div v-if='layout_done'>
-            <!-- {{workflow.json.nodes}} -->
-            <div v-if="current_node_id>-1">
-                <node-editor :key="'node_container_'+current_node_id+JSON.stringify(workflow.json)" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id" :can_edit='can_edit()' @add-edge="add_edge($event)"></node-editor>
-            </div>
-        </div>
-
         <div v-if='layout_done' :style="'width:'+screen_width+'px;height:'+screen_height+'px;border:1px solid #DDD;padding:2px;position:relative;'" @click.prevent.stop="set_current_node(-1)">
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+e.y+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname1+' connector_bottom edge'"></div>
 
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h/2)+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname2+' edge'"></div>
 
             <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click.prevent.stop="set_current_node(node_id)">
-                <div class="node-title">
+                <div :class="'node-title node-title-'+(((run.details??[])[n.node_id]||{}).status??'').toLowerCase()" :title="(((run.details??[])[n.node_id]||{}).status??'')">
                     <div style="float:right;" v-if='node_ext_url(workflow.json.nodes[n.node_id])!=""'>
                         <a :href="node_ext_url(workflow.json.nodes[n.node_id])" target="_blank" class="external" tt_title="external_source" @click.stop=''>&#x1f517;</a>
                     </div>
@@ -156,7 +178,7 @@ div.run-box {
                     <div v-if="workflow.json.nodes[n.node_id].kind=='Sparql'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.sparql}}</div>
                     </div>
-                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='QuarryQuery'">
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='QuarryQueryLatest'">
                         Query {{workflow.json.nodes[n.node_id].parameters.quarry_query_id}}
                     </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='PetScan'">
@@ -190,6 +212,9 @@ div.run-box {
                     <div v-else>
                         {{workflow.json.nodes[n.node_id]}}
                     </div>
+                    <div v-if="((run.details??[])[n.node_id]??{}).error!=null" class="node-title-failed" style="margin-top:0.5rem;">
+                        {{run.details[n.node_id].error}}
+                    </div>
                 </div>
                 <div class="node-output">
                     <div v-if="workflow.json.nodes[n.node_id].header_mapping.data.length>0" class="node-output-row">
@@ -206,6 +231,15 @@ div.run-box {
                 </div>
             </div>
         </div>
+
+        <div v-if='layout_done'>
+            <!-- {{workflow.json.nodes}} -->
+            <div v-if="current_node_id>-1">
+                <node-editor :key="'node_container_'+current_node_id+JSON.stringify(workflow.json)" :json="workflow.json" :external_headers="external_headers" :node_id="current_node_id" :can_edit='can_edit()' @add-edge="add_edge($event)" @remove-edge="remove_edge($event)" @delete-node="delete_node($event)"></node-editor>
+            </div>
+        </div>
+
+
     </div>
 </div>
 </template>
@@ -218,8 +252,8 @@ let current_node_data = {};
 let Workflow = Vue.extend ( {
     props : ['id'] ,
     data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}}, was_edited:false, 
-            new_tools:['AListBuildingTool','PagePile','PetScan','QuarryQuery','Sparql'],
-            run_id:-1, run:{}, files:[],
+            new_tools:['AListBuildingTool','PagePile','PetScan','QuarryQueryLatest','Sparql'],
+            run_id:-1, run:{}, forked_from: 0, files:[], reset_node:[],
             layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
     created : function () {
@@ -241,8 +275,10 @@ let Workflow = Vue.extend ( {
                 .then((response) => response.json())
                 .then((data) => {
                     // console.log(JSON.parse(JSON.stringify(data)));
+                    this.reset_node = [];
                     this.users = data.users;
                     this.workflow = data.workflow;
+                    this.forked_from = data.forked_from??0;
                     this.run_layout();
                     // this.current_node_id = 0; // TESTING
                     this.run_id = data.last_run_id??-1;
@@ -259,6 +295,7 @@ let Workflow = Vue.extend ( {
             if ( kind=="Join" ) {
                 node.parameters.mode = key.replace(/^.+\//,'');
                 if ( node.parameters.mode=="inner_join_on_key" ) node.parameters.join_key = '';
+                if ( node.parameters.mode=="merge_unique" ) node.parameters.join_key = '';
             }
             if ( kind=="Filter" ) {
                 node.parameters.key = "";
@@ -271,8 +308,17 @@ let Workflow = Vue.extend ( {
             this.workflow.json.nodes.push(node);
             this.files.push(undefined);
             this.was_edited = true;
+            this.reset_node_and_dependencies(this.workflow.json.nodes.length);
             this.run_layout();
             this.set_current_node(this.workflow.json.nodes.length-1);
+        },
+        reset_node_and_dependencies(node_id) {
+            let self = this;
+            self.files[node_id] = undefined;
+            self.reset_node[node_id] = true;
+            self.workflow.json.edges.forEach(function(edge){
+                if ( edge.source_node==node_id ) self.reset_node_and_dependencies(edge.target_node);
+            });
         },
         create_new_workflow() {
             const myRequest = new Request("./api.php?action=create_new_workflow");
@@ -321,11 +367,17 @@ let Workflow = Vue.extend ( {
                 })
                 .catch(console.error);
         },
-        start_run() {
-            let nodes_to_reset = []; // TODO just the required ones
+        get_nodes_to_reset() {
+            let nodes_to_reset = [];
             let nodes = this.workflow.json.nodes;
-            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) nodes_to_reset.push(node_id);
-
+            for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                if ( this.reset_node[node_id] ) nodes_to_reset.push(node_id);
+            }
+            this.reset_node = [];
+            return nodes_to_reset;
+        },
+        start_run() {
+            let nodes_to_reset = this.get_nodes_to_reset();
             const myRequest = new Request("./api.php?action=start_run&id="+this.run_id+"&reset_nodes="+JSON.stringify(nodes_to_reset));
             fetch(myRequest)
                 .then((response) => response.json())
@@ -346,7 +398,8 @@ let Workflow = Vue.extend ( {
         save_workflow(callback) {
             if ( typeof this.workflow.id=='undefined' ) return alert("No workflow ID");
             this.update_current_node();
-            const myRequest = new Request("./api.php?action=set_workflow&workflow="+encodeURIComponent(JSON.stringify(this.workflow)));
+            let nodes_to_reset = this.get_nodes_to_reset();
+            const myRequest = new Request("./api.php?action=set_workflow&workflow="+encodeURIComponent(JSON.stringify(this.workflow))+"&reset_nodes="+JSON.stringify(nodes_to_reset)+"&run_id="+this.run_id)
             fetch(myRequest)
                 .then((response) => response.json())
                 .then((data) => {
@@ -362,6 +415,7 @@ let Workflow = Vue.extend ( {
                 if ( JSON.stringify(j_old) != JSON.stringify(j_new) ) {
                     // console.log(JSON.stringify(j_new));
                     this.workflow.json.nodes[this.current_node_id] = JSON.parse(JSON.stringify(j_new));
+                    this.reset_node_and_dependencies(this.current_node_id);
                     this.was_edited = true;
                 }
             }
@@ -371,9 +425,19 @@ let Workflow = Vue.extend ( {
             fetch(myRequest)
                 .then((response) => response.json())
                 .then((data) => {
-                    console.log(JSON.parse(JSON.stringify(data)));
+                    // console.log(JSON.parse(JSON.stringify(data)));
+                    this.load_run();
                 })
                 .catch(console.error);            
+        },
+        fork_workflow() {
+            const myRequest = new Request("./api.php?action=fork_workflow&id="+this.workflow.id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.$router.replace('/workflow/'+data.new_workflow_id);
+                })
+                .catch(console.error);                        
         },
         set_current_node(node_id) {
             if ( node_id==this.current_node_id ) return;
@@ -384,7 +448,10 @@ let Workflow = Vue.extend ( {
         edit_string(s) {
             let ns = prompt(tt.t('new_value'), s);
             if ( ns==null ) return s;
-            if ( s!=ns ) this.was_edited = true;
+            if ( s!=ns ) {
+                this.reset_node_and_dependencies(this.current_node_id);
+                this.was_edited = true;
+            }
             return ns;
         },
         run_layout() {
@@ -432,6 +499,7 @@ let Workflow = Vue.extend ( {
             }
             let again = true ;
             while ( again ) {
+                let current_in_row = [];
                 again = false;
                 for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
                     this.layout.nodes[node_id].calc_cols = [];
@@ -442,11 +510,16 @@ let Workflow = Vue.extend ( {
                 }
                 for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
                     let row = this.layout.nodes[node_id].row;
+                    if ( typeof current_in_row[row]=='undefined' ) current_in_row[row] = 1;
+                    else current_in_row[row]++;
+
                     let n = this.layout.nodes[node_id];
                     if ( nodes_in_row[row]==1 && n.calc_cols.length>0 ) {
                         let sum = 0 ;
                         n.calc_cols.forEach(function(item, index) { sum += item ; });
                         n.col = sum/n.calc_cols.length;
+                    } else {
+                        n.col = current_in_row[row];
                     }
                     let new_x = Math.floor(n.col * (this.screen_width/nodes.length))+2 ;
                     if (n.x!=new_x) {
@@ -457,13 +530,17 @@ let Workflow = Vue.extend ( {
             }
 
             // Shift nodes to the right so that the entire tree is centered
+            let min_x = 99999999;
             let max_x = 0;
             for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
                 let n = this.layout.nodes[node_id];
                 if ( max_x < n.x+n.w ) max_x = n.x+n.w ;
+                if ( min_x > n.x ) min_x = n.x;
             }
+            max_x -= min_x;
             let margin_left = Math.floor ( ( this.screen_width - max_x ) / 2 ) ;
             for ( let node_id = 0 ; node_id<nodes.length ; node_id++ ) {
+                this.layout.nodes[node_id].x -= min_x;
                 this.layout.nodes[node_id].x += margin_left ;
                 this.layout.nodes[node_id].y += 2 ;
             }
@@ -491,9 +568,63 @@ let Workflow = Vue.extend ( {
             this.layout_done = true;
         },
         add_edge(edge) {
+            this.update_current_node();
             this.workflow.json.edges.push(edge);
+            this.reset_node_and_dependencies(this.current_node_id);
             this.was_edited = true;
             this.run_layout();
+        },
+        remove_edge(edge) {
+            this.update_current_node();
+            let new_edges = [];
+            this.workflow.json.edges.forEach(function(e){
+                if ( edge.source_node==e.source_node && edge.target_node==e.target_node ) return;
+                new_edges.push(e);
+            });
+            this.workflow.json.edges = new_edges;
+            this.reset_node_and_dependencies(edge.target_node);
+            this.was_edited = true;
+            this.run_layout();
+        },
+        delete_node(node_id) {
+            this.update_current_node();
+            this.reset_node_and_dependencies(node_id);
+            this.workflow.json.nodes.splice(node_id,1);
+            if ( this.files.length>node_id) this.files.splice(node_id,1);
+            if ( this.reset_node.length>node_id) this.reset_node.splice(node_id,1);
+            if ( typeof this.run.details!='undefined' ) this.run.details.splice(node_id,1);
+
+            let new_edges = [];
+            let slot_fixes = {};
+            this.workflow.json.edges.forEach(function(e){
+                if ( e.source_node==node_id || e.target_node==node_id ) {
+                    slot_fixes[node_id+1] = e.target_slot;
+                    return;
+                }
+                if ( e.source_node>node_id ) e.source_node -= 1 ;
+                if ( e.target_node>node_id ) e.target_node -= 1 ;
+                new_edges.push(e);
+            });
+            this.workflow.json.edges.forEach(function(e){
+                if ( typeof slot_fixes[e.target_node]=='undefined' ) return;
+                if ( e.target_slot < slot_fixes[e.target_node] ) return;
+                e.target_slot -= 1;
+            });
+            this.workflow.json.edges = new_edges;
+            this.was_edited = true;
+            this.current_node_id = -1;
+            this.run_layout();
+
+        },
+        clear_files() {
+            const myRequest = new Request("./api.php?action=clear_files&run_id="+this.run_id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    this.files=[];
+                    this.load_run();
+                })
+                .catch(console.error);                        
         },
         can_edit() {
             return ( widar.userinfo.id??0==this.workflow.user_id );

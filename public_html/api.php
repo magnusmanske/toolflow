@@ -1,7 +1,7 @@
 <?PHP
-// ini_set('display_errors', 1);
-// ini_set('display_startup_errors', 1);
-// error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 require_once ( "php/Widar.php" );
 
@@ -21,6 +21,15 @@ try {
 # Actual code
 $tfc = $widar->tfc;
 $action = $tfc->getRequest("action","");
+$user_ids = [];
+
+function finish($msg='') {
+	global $j ;
+	if ( $msg!='' ) $j->status = $msg ;
+	header('Content-type: application/json');
+	print json_encode ( $j ) ;
+	exit(0);
+}
 
 function ensure_db() {
 	global $db, $tfc;
@@ -32,12 +41,37 @@ function get_file_path($uuid) {
 	return $path;
 }
 
+function reset_nodes($run_id,$reset_nodes) {
+	global $db, $tfc ;
+	ensure_db();
+	if ( $run_id<=0 ) return; // Not a valid run ID
+	if ( $reset_nodes=='all' or count($reset_nodes) > 0 ) {
+		// Delete files on disk
+		$file_ids_to_delete = [];
+		$sql = "SELECT `id`,`uuid` FROM `file` WHERE `run_id`={$run_id}";
+		if ( $reset_nodes=='all' ) $sql .= '';
+		else $sql .= " AND `node_id` IN (".implode(",",$reset_nodes).")" ;
+		$result = $tfc->getSQL($db,$sql);
+		while($o = $result->fetch_object()) {
+			$file_ids_to_delete[] = $o->id ;
+			$path = get_file_path($o->uuid);
+			unlink($path);
+		}
+
+		// Remove entries in database
+		if ( count($file_ids_to_delete)>0 ) {
+			$sql = "DELETE FROM `file` WHERE `id` IN (".implode(",",$file_ids_to_delete).")" ;
+			$tfc->getSQL($db,$sql);
+		}
+	}
+}
+
 function add_users() {
 	global $db , $user_ids , $j , $tfc ;
 	$j->users = [];
 	if ( count($user_ids)==0 or $user_ids==['']) return;
 	$user_ids = array_unique($user_ids);
-	$sql = "SELECT * FROM `user` WHERE `id` IN (".implode($user_ids).")" ;
+	$sql = "SELECT * FROM `user` WHERE `id` IN (".implode(',',$user_ids).")" ;
 	ensure_db();
 	$result = $tfc->getSQL($db,$sql);
 	while($o = $result->fetch_object()) $j->users[$o->id] = $o;
@@ -57,6 +91,27 @@ function get_user_id() {
 	} catch ( Exception $e ) {
 		# Ignore
 	}
+}
+
+function can_change_workflow($workflow_id,$user_id) {
+	global $db, $tfc;
+	ensure_db();
+	$workflow_id *= 1 ;
+	$user_id *= 1 ;
+	$sql = "SELECT * FROM `workflow` WHERE `id`={$workflow_id} AND `user_id`={$user_id}" ;
+	$result = $tfc->getSQL($db,$sql);
+	if($o = $result->fetch_object()) return true;
+	return false;
+}
+
+function get_workflow_for_run_id($run_id) {
+	global $db, $tfc;
+	ensure_db();
+	$run_id *= 1 ;
+	$sql = "SELECT `workflow_id` FROM `run` WHERE `id`={$run_id}" ;
+	$result = $tfc->getSQL($db,$sql);
+	if($o = $result->fetch_object()) return $o->workflow_id;
+
 }
 
 $j = (object) ['status'=>'UNKNOWN ACTION'];
@@ -79,9 +134,12 @@ if ( $action == 'get_workflow' ) {
 
 		$sql = "SELECT max(`id`) as `id` FROM `run` WHERE `workflow_id`={$id}" ;
 		$result = $tfc->getSQL($db,$sql);
-		if($o = $result->fetch_object()) {
-			$j->last_run_id = $o->id;
-		}
+		if($o = $result->fetch_object()) $j->last_run_id = $o->id;
+
+		$sql = "SELECT `source` FROM `fork` WHERE `target`={$id}" ;
+		$result = $tfc->getSQL($db,$sql);
+		if($o = $result->fetch_object()) $j->forked_from = $o->source;
+
 		add_users();
 	} else {
 		$j->status = 'Missing/bad workflow ID';
@@ -90,13 +148,16 @@ if ( $action == 'get_workflow' ) {
 } else if ( $action == 'set_workflow' ) {
 
 	$workflow = $tfc->getRequest('workflow','{}');
+	$run_id = $tfc->getRequest('run_id',0)*1;
 	$j->status = "trying {$workflow}";
 	$workflow = json_decode($workflow);
 	$user_id = get_user_id();
-	if ( !isset($user_id) ) {
-		$j->status = 'Not logged in';
-	} else if ( isset($workflow->id) ) {
+	$reset_nodes = json_decode($tfc->getRequest("reset_nodes",'[]'));
+	if ( !isset($user_id) ) finish('Not logged in');
+	if ( isset($workflow->id) ) {
 		ensure_db();
+		reset_nodes($run_id,$reset_nodes);
+		if ( !can_change_workflow($workflow->id,$user_id) ) finish("You do not own this workflow");
 		$name_safe = $db->real_escape_string ( $workflow->name ) ;
 		$state_safe = $db->real_escape_string ( $workflow->state ) ;
 		$json_safe = json_encode ( $workflow->json ) ;
@@ -111,39 +172,57 @@ if ( $action == 'get_workflow' ) {
 
 	ensure_db();
 	$user_id = get_user_id();
-	if ( !isset($user_id) ) {
-		$j->status = 'Not logged in';
-	} else {
-		$json = [ "nodes"=>[] , "edges"=>[] ];
-		$name_safe = $db->real_escape_string ( "Unnamed workflow" ) ;
-		$state_safe = $db->real_escape_string ( "DRAFT" ) ;
-		$json_safe = json_encode ( $json ) ;
-		$sql = "INSERT INTO `workflow` (`name`,`json`,`state`,`user_id`,`ts_created`) VALUES ('{$name_safe}','{$json_safe}','{$state_safe}',{$user_id},NOW())" ;
-		$j->sql = $sql ; // DEBUG TEST FIXME
+	if ( !isset($user_id) ) finish('Not logged in');
+	$json = [ "nodes"=>[] , "edges"=>[] ];
+	$name_safe = $db->real_escape_string ( "Unnamed workflow" ) ;
+	$state_safe = $db->real_escape_string ( "DRAFT" ) ;
+	$json_safe = json_encode ( $json ) ;
+	$sql = "INSERT INTO `workflow` (`name`,`json`,`state`,`user_id`,`ts_created`) VALUES ('{$name_safe}','{$json_safe}','{$state_safe}',{$user_id},NOW())" ;
+	$tfc->getSQL($db,$sql);
+	if ( $db->affected_rows == 1 ) {
+		$j->status = 'OK';
+		$j->workflow_id = $db->insert_id;
+		$sql = "UPDATE `workflow` SET `name`='New workflow #{$j->workflow_id}' WHERE `id`={$j->workflow_id}" ;
 		$tfc->getSQL($db,$sql);
-		if ( $db->affected_rows == 1 ) {
-			$j->status = 'OK';
-			$j->workflow_id = $db->insert_id;
-			$sql = "UPDATE `workflow` SET `name`='New workflow #{$j->workflow_id}' WHERE `id`={$j->workflow_id}" ;
-			$tfc->getSQL($db,$sql);
-		} else $j->status = "Could not create new workflow";
-	}
+	} else finish("Could not create new workflow");
+
+
+} else if ( $action == 'fork_workflow' ) {
+
+	ensure_db();
+	$user_id = get_user_id();
+	if ( !isset($user_id) ) finish('Not logged in');
+	$workflow_id = $tfc->getRequest('id',0)*1;
+	if ( $workflow_id<=0 ) finish('No valid workflow ID');
+	$sql = "INSERT INTO `workflow` (`name`,`json`,`user_id`,`ts_created`,`state`) SELECT concat(`name`,' [FORK]'),`json`,{$user_id},NOW(),'DRAFT' FROM `workflow` WHERE `id`={$workflow_id}" ;
+	$j->sql = $sql ;
+	$tfc->getSQL($db,$sql);
+	$j->new_workflow_id = $db->insert_id;
+	$sql = "INSERT INTO `fork` (`source`,`target`) VALUES ({$workflow_id},{$j->new_workflow_id})" ;
+	$tfc->getSQL($db,$sql);
 
 } else if ( $action == 'create_new_run' ) {
 
 	$workflow_id = $tfc->getRequest("id",0)*1;
+	$user_id = get_user_id();
+	if ( !isset($user_id) ) finish('Not logged in');
+	if ( !can_change_workflow($workflow_id,$user_id) ) finish("You do not own this workflow");
 	if ( $workflow_id>0 ) {
 		ensure_db();
 		$sql = "INSERT INTO `run` (`status`,`workflow_id`,`ts_created`,`details`) VALUES ('DONE',{$workflow_id},NOW(),'[]')";
 		$tfc->getSQL($db,$sql);
 		$j->run_id = $db->insert_id;
 		$j->status = 'OK';
-	} else $j->status = "Bad workflow ID: {$workflow_id}" ;
+	} else finish("Bad workflow ID: {$workflow_id}") ;
 
 
 } else if ( $action == 'cancel_run' ) {
 
 	$run_id = $tfc->getRequest("id",0)*1;
+	$workflow_id = get_workflow_for_run_id($run_id);
+	$user_id = get_user_id();
+	if ( !isset($user_id) ) finish('Not logged in');
+	if ( !can_change_workflow($workflow_id,$user_id) ) finish("You do not own this workflow");
 	ensure_db();
 	$sql = "UPDATE `run` SET `status`='CANCEL' WHERE `id`={$run_id}";
 	$tfc->getSQL($db,$sql);
@@ -153,13 +232,13 @@ if ( $action == 'get_workflow' ) {
 } else if ( $action == 'start_run' ) {
 
 	$run_id = $tfc->getRequest("id",0)*1;
+	$workflow_id = get_workflow_for_run_id($run_id);
+	$user_id = get_user_id();
+	if ( !isset($user_id) ) finish('Not logged in');
+	if ( !can_change_workflow($workflow_id,$user_id) ) finish("You do not own this workflow");
 	$reset_nodes = json_decode($tfc->getRequest("reset_nodes",'[]'));
 	ensure_db();
-	if ( count($reset_nodes) > 0 ) {
-		// TODO actually delete files
-		$sql = "DELETE FROM `file` WHERE `run_id`={$run_id} AND `node_id` IN (".implode(",",$reset_nodes).")" ;
-		$tfc->getSQL($db,$sql);
-	}
+	reset_nodes($run_id,$reset_nodes);
 
 	# Start run
 	$sql = "UPDATE `run` SET `status`='WAIT',`nodes_done`=0 WHERE `id`={$run_id}"; # TODO node totals?
@@ -174,8 +253,10 @@ if ( $action == 'get_workflow' ) {
 		$sql = "SELECT * FROM `run` WHERE `id`={$id}" ;
 		ensure_db();
 		$result = $tfc->getSQL($db,$sql);
-		if($o = $result->fetch_object()) $j->run = $o ;
-		else $j->status = 'DB query failed';
+		if($o = $result->fetch_object()) {
+			$o->details = json_decode($o->details);
+			$j->run = $o ;
+		} else finish('DB query failed');
 
 		$j->files = [];
 		$sql = "SELECT * FROM `file` WHERE `run_id`={$id}" ;
@@ -281,6 +362,13 @@ if ( $action == 'get_workflow' ) {
 	if ( $j->header==[""] ) $j->status = "UPSTREAM ERROR";
 	else if ( isset($j->header) ) $j->status = 'OK';
 
+} else if ( $action == 'clear_files' ) {
+
+	$run_id = strtolower($tfc->getRequest('run_id',0))*1;
+	if ( $run_id<=0 ) finish("No run ID");
+	reset_nodes($run_id,'all');
+	$j->status = 'OK';
+
 } else if ( $action == 'download_file' ) {
 
 	$uuid = strtolower($tfc->getRequest('uuid',''));
@@ -362,12 +450,13 @@ if ( $action == 'get_workflow' ) {
 		foreach ( $workflow_ids AS $workflow_id ) {
 			$j->runs[$workflow_id] = [ "workflow_id" => $workflow_id , "status" => "NEVER RUN" ] ;
 		}
-		$sql = "SELECT * FROM run  INNER JOIN
+		$sql = "SELECT * FROM `run` INNER JOIN
 			(select workflow_id, max(ts_last) as ts from run group by workflow_id) maxt
 			ON (run.workflow_id = maxt.workflow_id AND run.ts_last = maxt.ts)
 			WHERE run.workflow_id IN (".implode(',',$workflow_ids).") ORDER BY run.ts_last" ;
+		$j->sql = $sql ;
 		$result = $tfc->getSQL($db,$sql);
-		while($o = $result->fetch_object()) $j->runs[$workflow_id] = $o ;
+		while($o = $result->fetch_object()) $j->runs[$o->workflow_id] = $o ;
 		$j->runs = array_values($j->runs);
 
 	} else {
@@ -377,6 +466,6 @@ if ( $action == 'get_workflow' ) {
 }
 
 if ( $j->status=='OK' ) add_users() ;
-print json_encode ( $j ) ;
+finish();
 
 ?>
