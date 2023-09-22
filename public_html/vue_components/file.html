@@ -4,18 +4,21 @@
 	<div v-if='rows.length>0'>
 		<div style="float: right;">
 			<div class="btn-group">
-			  <a type="button" class="btn btn-outline-primary" :href="'/api.php?action=download_file&uuid='+uuid">Download as JSONL</a>
+			  <a type="button" class="btn btn-outline-primary" :href="'/api.php?action=download_file&attachment=1&uuid='+uuid">Download as JSONL</a>
 			  <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
 			    <span class="sr-only">Toggle Dropdown</span>
 			  </button>
 			  <div class="dropdown-menu">
-			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=json&uuid='+uuid">JSON</a>
+			  	<a class="dropdown-item" target="_blank" :href="'/api.php?action=download_file&format=json&uuid='+uuid">JSONL <span tt='open_in_tab'></span></a>
+			    <a class="dropdown-item" :href="'/api.php?action=download_file&attachment=1&format=json&uuid='+uuid">JSON</a>
+			    <a class="dropdown-item" target="_blank" :href="'/api.php?action=download_file&format=json&uuid='+uuid">JSON <span tt='open_in_tab'></span></a>
+			    <a class="dropdown-item" target="_blank" :href="'/api.php?action=download_file&format=wiki&uuid='+uuid">wikitext <span tt='open_in_tab'></span></a>
 <!-- 			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=tsv&uuid='+uuid">TSV</a>
 			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=csv&uuid='+uuid">CSV</a>
  -->			  </div>
 			</div>
 		</div>
-		{{file.rows-1}} data rows, showing 1-{{rows.length-1}}
+		{{Intl.NumberFormat().format(file.rows-1)}} data rows, showing 1-{{rows.length-1}}
 	</div>
 
 	<div v-if='rows.length>0'>
@@ -31,17 +34,26 @@
 				<tr v-for='row,rownum in rows' v-if='rownum>0'>
 					<td v-for='c in row'>
 						<span v-if="typeof c.WikiPage!='undefined'">
-							<span v-if="server(c.WikiPage)==''">
-								{{pagetitle(c.WikiPage)}}
+							<span v-if="c.WikiPage.ns_id==6" style="float:right;">
+								<img :src="'https://commons.wikimedia.org/wiki/Special:Redirect/file/'+c.WikiPage.prefixed_title+'?width=128px'" />
+							</span>
+							<span v-if="c.WikiPage.wiki=='wikidatawiki' && c.WikiPage.ns_id==0">
+								<wd-link :item="c.WikiPage.prefixed_title" smallq="1"></wd-link>
+							</span>
+							<span v-else-if="server(c.WikiPage)==''">
+								{{pagetitle(c.WikiPage).replace(/_/g,' ')}}
 							</span>
 							<span v-else>
 								<a :href="'https://'+server(c.WikiPage)+'/wiki/'+pagetitle(c.WikiPage)" target="_blank" class="wiki">
-									{{pagetitle(c.WikiPage)}}
+									{{pagetitle(c.WikiPage).replace(/_/g,' ')}}
 								</a>
 							</span>
 						</span>
 						<span v-else-if="typeof c.PlainText!='undefined'">
 							{{c.PlainText}}
+						</span>
+						<span v-else-if="typeof c.Int!='undefined'">
+							<tt>{{c.Int}}</tt>
 						</span>
 						<span v-else>
 							{{c}}
@@ -72,8 +84,22 @@ let File = Vue.extend ( {
                 .then((response) => response.json())
                 .then((data) => {
                     // console.log(JSON.parse(JSON.stringify(data)));
-                    this.rows = data.rows;
-                    this.file = data.file;
+
+                    // Load Wikidata items
+                    let self = this;
+                    let items = [];
+                    Array.prototype.forEach.call(data.rows, row => {
+                    	Array.prototype.forEach.call(row, cell => {
+                    		if (typeof cell.WikiPage=='undefined') return;
+                    		if ((cell.WikiPage.wiki??'')!='wikidatawiki') return;
+                    		items.push(cell.WikiPage.prefixed_title);
+                    	});
+                    });
+
+                    wd.getItemBatch(items,function(){
+	                    self.rows = data.rows;
+	                    self.file = data.file;
+                    });
                 })
                 .catch(console.error);
     	},

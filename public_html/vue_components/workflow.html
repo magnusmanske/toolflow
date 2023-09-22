@@ -88,8 +88,8 @@ div.run-box {
     <div v-if="typeof workflow.name!='undefined'">
         <div style="float:right">
             <button v-if="was_edited" class="btn btn-outline-primary" @click.prevent="save_workflow()" tt="save_changes"></button>
-            <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary" tt="pubished"></button>
-            <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary" tt="draft"></button>
+            <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary" tt="pubished" @click.prevent="toggle_state()"></button>
+            <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary" tt="draft" @click.prevent="toggle_state()"></button>
             <button v-if="is_logged_in()" class="btn btn-outline-success" tt="fork_workflow" @click.prevent.stop="fork_workflow"></button>
         </div>
         <h2>
@@ -101,26 +101,27 @@ div.run-box {
         </div>
         <div style="height: 3.5rem;">
             by 
-            <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflow.user_id].name)" target="_blank" class="wikidata">{{users[workflow.user_id].name}}</a>
+            <router-link :to="'/user/'+users[workflow.user_id].id">{{users[workflow.user_id].name}}</router-link>
             <div class="run-box">
-                <div v-if="!(run_id>-1)">
+                <div v-if="!(run_id>-1)" key="RUN1">
                     <button class="btn btn-outline-success" tt="create_new_run" @click.prevent.stop="create_new_run()"></button>
                 </div>
                 <div v-else>
-                    <button type="button" class="btn btn-outline-secondary" disabled>
+                    <button type="button" class="btn btn-outline-secondary" disabled key="RUN2">
                         <span tt="run"></span>
                         <router-link class="badge badge-light" :to="'/run/'+run_id">#{{run_id}}</router-link>
                     </button>
                     
                     
                     <div class="btn-group">
+                        <button v-if="run.status=='WAIT'" class="btn btn-outline-primary" tt="wait" disabled></button>
                         <button v-if="run.status=='DONE'||run.status=='CANCEL'||run.status=='FAIL'" class="btn btn-outline-primary" tt="start" tt_title="start_title" @click.prevent.stop="save_and_run_workflow()"></button>
                         <button v-else-if="run.status=='RUN'" class="btn btn-outline-danger" tt="cancel" @click.prevent.stop="cancel_run()"></button>
 
                         <button type="button" class="btn btn-outline-primary dropdown-toggle dropdown-toggle-split" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
                         <div class="dropdown-menu">
-                            <a class="btn btn-outline-success" tt="create_new_run" @click.prevent.stop="create_new_run()"></a>
-                            <a class="btn btn-outline-warning" href='#' @click.prevent.stop="clear_files()" tt="clear_all_files"></a>
+                            <a class="btn btn-outline-success" tt="create_new_run" @click.prevent="create_new_run()"></a>
+                            <a class="btn btn-outline-warning" href='#' @click.prevent="clear_files()" tt="clear_all_files"></a>
                         </div>
                     </div>
                     
@@ -192,6 +193,9 @@ div.run-box {
                         /
                         {{workflow.json.nodes[n.node_id].parameters.a_list_building_tool_qid}}
                     </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='WdFist'">
+                        {{decodeURIComponent((workflow.json.nodes[n.node_id].parameters.wdfist_url??'').replace(/^.+?\bsparql=(.+?)&.*$/,"$1"))}}
+                    </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Join'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.mode.replace(/_/g,' ')}}</div>
                         <div>on <i>{{workflow.json.nodes[n.node_id].parameters.join_key}}</i></div>
@@ -252,7 +256,7 @@ let current_node_data = {};
 let Workflow = Vue.extend ( {
     props : ['id'] ,
     data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}}, was_edited:false, 
-            new_tools:['AListBuildingTool','PagePile','PetScan','QuarryQueryLatest','Sparql'],
+            new_tools:Object.keys(external_ids.nodes).sort(),//['AListBuildingTool','PagePile','PetScan','QuarryQueryLatest','Sparql'],
             run_id:-1, run:{}, forked_from: 0, files:[], reset_node:[],
             layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
@@ -625,6 +629,12 @@ let Workflow = Vue.extend ( {
                     this.load_run();
                 })
                 .catch(console.error);                        
+        },
+        toggle_state() {
+            this.update_current_node();
+            if ( this.workflow.state=='DRAFT' ) this.workflow.state ='PUBLISHED';
+            else this.workflow.state ='DRAFT';
+            this.save_workflow();
         },
         can_edit() {
             return ( widar.userinfo.id??0==this.workflow.user_id );

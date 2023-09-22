@@ -33,7 +33,7 @@ function finish($msg='') {
 
 function ensure_db() {
 	global $db, $tfc;
-	if ( !isset($db) ) $db = $tfc->openDBtool('toolflow_p');
+	if ( !isset($db) ) $db = $tfc->openDBtool('toolflow');
 }
 
 function get_file_path($uuid) {
@@ -71,7 +71,7 @@ function add_users() {
 	$j->users = [];
 	if ( count($user_ids)==0 or $user_ids==['']) return;
 	$user_ids = array_unique($user_ids);
-	$sql = "SELECT * FROM `user` WHERE `id` IN (".implode(',',$user_ids).")" ;
+	$sql = "SELECT id,name FROM `user` WHERE `id` IN (".implode(',',$user_ids).")" ;
 	ensure_db();
 	$result = $tfc->getSQL($db,$sql);
 	while($o = $result->fetch_object()) $j->users[$o->id] = $o;
@@ -85,7 +85,8 @@ function get_user_id() {
 		if ( !isset($id) ) return ;
 		$name = $widar->get_username();
 		$name = $db->real_escape_string ( $name ) ;
-		$sql = "REPLACE INTO `user` (`id`,`name`) VALUES ({$id},'{$name}')" ;
+		$oa = json_encode($widar->oa);
+		$sql = "REPLACE INTO `user` (`id`,`name`,`oauth`) VALUES ({$id},'{$name}','{$oa}')" ;
 		$tfc->getSQL($db,$sql);
 		return $id;
 	} catch ( Exception $e ) {
@@ -117,7 +118,20 @@ function get_workflow_for_run_id($run_id) {
 $j = (object) ['status'=>'UNKNOWN ACTION'];
 $user_ids = [];
 
-if ( $action == 'get_workflow' ) {
+if ( $action == 'user_info' ) {
+
+	$user_id = $tfc->getRequest("id",0)*1;
+
+	# User info
+	ensure_db();
+	$sql = "SELECT id,name FROM `user` WHERE `id`={$user_id}" ;
+	$result = $tfc->getSQL($db,$sql);
+	if($o = $result->fetch_object()) $j->user = $o;
+	else finish("Bad user ID {$user_id}");
+
+	$j->status = 'OK';
+
+} else if ( $action == 'get_workflow' ) {
 
 	$id = $tfc->getRequest("id",0)*1;
 	if ( $id>0 ) {
@@ -353,13 +367,20 @@ if ( $action == 'get_workflow' ) {
 			// Always the same
 			$j->header = ["title","qid"];
 
+		} else if ( $kind=='WdFist' ) {
+
+			// $nodes = json_decode(file_get_contents('./nodes.json'));
+			$j->header = [];
+
+		} else {
+			finish("Unknown kind '{$kind}'");
 		}
 
 	} catch (Exception $e) {
 		$j->status = "UPSTREAM ERROR";
 	}
 
-	if ( $j->header==[""] ) $j->status = "UPSTREAM ERROR";
+	if ( !isset($j->header) or $j->header==[""] ) $j->status = "UPSTREAM ERROR";
 	else if ( isset($j->header) ) $j->status = 'OK';
 
 } else if ( $action == 'clear_files' ) {
@@ -374,19 +395,20 @@ if ( $action == 'get_workflow' ) {
 	$uuid = strtolower($tfc->getRequest('uuid',''));
 	$format = strtolower($tfc->getRequest('format','jsonl'));
 
+	$as_attachment = $tfc->getRequest('attachment',0)*1;
+	if ( $as_attachment ) header("content-disposition:attachment; filename=\"{$uuid}.{$format}\"");
+
 	if ( preg_match('/^[a-f0-9-]+$/', $uuid) ) {
 		$j->status = 'OK';
 
 		if ( $format=='jsonl' ) {
 			header('Content-type: application/jsonl');
-			header("content-disposition:attachment; filename=\"{$uuid}.{$format}\"");
 			$path = get_file_path($uuid);
 			$fp = fopen($path, 'rb');
 			fpassthru($fp);
 			fclose($fp);
 		} else if ( $format=='json' ) {
 			header('Content-type: application/json');
-			header("content-disposition:attachment; filename=\"{$uuid}.{$format}\"");
 			$path = get_file_path($uuid);
 			$fp = fopen($path, 'rb');
 			$header = fgets($fp);
@@ -399,6 +421,72 @@ if ( $action == 'get_workflow' ) {
 			}
 			print "]}";
 			fclose($fp);
+		} else if ( $format=='wiki' ) {
+			header('Content-type: text/plain');
+			$path = get_file_path($uuid);
+			$fp = fopen($path, 'rb');
+
+			# Header
+			$default_wiki = strtolower($tfc->getRequest('wiki',''));
+			$header = json_decode(fgets($fp));
+			print "{| class=\"wikitable\"\n";
+			foreach ( $header->columns AS $col ) {
+				print "! ".ucfirst(str_replace('_',' ',$col->name))."\n";
+				if ( $default_wiki=='' and isset($col->kind->WikiPage) ) {
+					$default_wiki = $col->kind->WikiPage->wiki??'';
+				}
+			}
+
+			# Rows
+			$namespaces_that_need_prefix = [6,14]; # File, category
+			while (($buffer = fgets($fp)) !== false) {
+				$row = json_decode($buffer);
+				print "|--\n";
+				foreach ( $header->columns AS $colnum => $col ) {
+					if ( !isset($row[$colnum]) ) { # No cell
+						print "||\n";
+						continue;
+					}
+					$cell = $row[$colnum];
+					if ( isset($cell->WikiPage) ) {
+						// print_r($cell);
+						$wiki = $cell->WikiPage->wiki ?? '';
+						$title = $cell->WikiPage->prefixed_title;
+						if ( $wiki != $default_wiki ) {
+							if ( $wiki=='commonswiki' and $cell->WikiPage->ns_id==6 ) { # File
+								$title = "{$title}|thumbnail|";
+							} else {
+								$wiki_prefix = preg_replace('|^(.+)wik.*$|','$1',$wiki);
+								$title = ":{$wiki_prefix}:{$title}";
+							}
+						} else if ( $cell->WikiPage->ns_id==6 ) { # File
+							$title = "{$title}|thumbnail|";
+						} else if ( in_array($cell->WikiPage->ns_id, $namespaces_that_need_prefix) ) $title = ":{$title}";
+
+						$link = $title ;
+						if ( $cell->WikiPage->ns_id!=6 and strpos($title, '_')!==false ) {
+							$pretty_title = str_replace('_', ' ', $title);
+							$pretty_title = preg_replace('|^:+|','',$pretty_title);
+							$link = $title."|".$pretty_title;
+						}
+						print "| [[{$link}]]\n";
+					} else if ( isset($cell->PlainText) ) {
+						print "| {$cell->PlainText}\n";
+					} else if ( isset($cell->Int) ) {
+						print "| {$cell->Int}\n";
+					} else if ( isset($cell->Float) ) {
+						print "| {$cell->Float}\n";
+					} else {
+						print "| UNKOWN CELL TYPE: " . json_encode($cell) . "\n";
+					}
+				}
+			}
+
+			print "|}\n";
+			$time = $date = date('m/d/Y h:i:s a', time());;
+			print "from [https://toolflow.toolforge.org/#/file/{$uuid} ToolFlow] {$time} UTC\n"; 
+
+
 		} else {
 			$j->status = "Unknown format '{$format}'";
 		}
@@ -439,6 +527,29 @@ if ( $action == 'get_workflow' ) {
 
 	} else if ( $mode == 'new' ) {
 		$sql = "SELECT * FROM `workflow` ORDER BY `ts_created` DESC LIMIT 25" ;
+		$result = $tfc->getSQL($db,$sql);
+		while($o = $result->fetch_object()) {
+			$j->workflows[$o->id] = $o ;
+			$user_ids[] = $o->user_id;
+		}
+		$workflow_ids = array_keys($j->workflows);
+
+		$j->runs = [];
+		foreach ( $workflow_ids AS $workflow_id ) {
+			$j->runs[$workflow_id] = [ "workflow_id" => $workflow_id , "status" => "NEVER RUN" ] ;
+		}
+		$sql = "SELECT * FROM `run` INNER JOIN
+			(select workflow_id, max(ts_last) as ts from run group by workflow_id) maxt
+			ON (run.workflow_id = maxt.workflow_id AND run.ts_last = maxt.ts)
+			WHERE run.workflow_id IN (".implode(',',$workflow_ids).") ORDER BY run.ts_last" ;
+		$j->sql = $sql ;
+		$result = $tfc->getSQL($db,$sql);
+		while($o = $result->fetch_object()) $j->runs[$o->workflow_id] = $o ;
+		$j->runs = array_values($j->runs);
+
+	} else if ( $mode == 'user' ) {
+		$user_id = $tfc->getRequest('user_id',0)*1;
+		$sql = "SELECT * FROM `workflow` WHERE `user_id`={$user_id} ORDER BY `ts_created` DESC" ;
 		$result = $tfc->getSQL($db,$sql);
 		while($o = $result->fetch_object()) {
 			$j->workflows[$o->id] = $o ;

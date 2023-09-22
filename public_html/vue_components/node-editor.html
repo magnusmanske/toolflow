@@ -139,7 +139,7 @@ table.parameters td {
 
 				<tr v-if="n.header_mapping.data.length>0">
 					<th tt="output_mapping"></th>
-					<td>
+					<td style="max-width: 20rem;">
 						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' :can_edit='can_edit' @data-changed='header_data_changed(n,$event)' :key="JSON.stringify(n.header_mapping)+JSON.stringify(n.header_options)"></header-mapping>
 					</td>
 				</tr>

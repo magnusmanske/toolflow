@@ -5,6 +5,7 @@ div.header-box {
 }
 div.header-box-subtitle {
 	font-weight: bold;
+	white-space: nowrap;
 }
 div.header-mapping-row {
 	white-space: nowrap;
@@ -14,6 +15,7 @@ div.header-title {
     font-weight: bold;
     border-bottom: 1px solid #DDD;
     background-color: #D7EEFF;
+    white-space: nowrap;
 }
 div.header-mapping {
 	font-size: 10pt;
@@ -25,6 +27,10 @@ div.header-mapping-title {
     font-weight: bold;
     border-bottom: 1px solid #DDD;	
     background-color: #D7FFEE;
+}
+div.header-mapping-body {
+	font-size: 9pt;
+	white-space: nowrap;
 }
 input[readonly].readonly {
   background-color:#EEE;
@@ -42,41 +48,48 @@ input[readonly].readonly {
 				{{h.header.name}}
 				<small v-if='can_edit'><a href='#' @click.prevent='h.header.name=edit_string(h.header.name)'>✎</a></small>
 			</div>
-			<div v-if="typeof h.header.kind.WikiPage!='undefined'">
-				<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="wiki_page"></span></div>
-				<div>
-					<label>
-						<span tt='wiki'></span>
-						<select v-model="h.header.kind.WikiPage.wiki" @change="update_wiki(h)">
-							<option value="" tt="no_default_namespace"></option>
-							<option v-for="site in wiki_namespaces.site_list" :value="site.wiki">{{site.label}}</option>
-						</select>
-					</label>
-				</div>
-
-				<div tt_title="namespace_column">
-					<div v-if="typeof ns[h.header.kind.WikiPage.wiki]!='undefined'">
-						<span tt="namespace"></span>
-						<select v-model="h.header.kind.WikiPage.ns_id">
-							<option tt="no_default_namespace" value="null"></option>
-							<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @click="wp_namespace_changed(h)">{{k}}: {{v.canonical??main_namespace_placeholder}}</option>
-						</select>
+			<div class="header-mapping-body">
+				<div v-if="typeof h.header.kind.WikiPage!='undefined'">
+					<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="wiki_page"></span></div>
+					<div>
+						<label>
+							<span tt='wiki'></span>
+							<select v-model="h.header.kind.WikiPage.wiki" @change="update_wiki(h)">
+								<option value="" tt="no_default_namespace"></option>
+								<option v-for="site in wiki_namespaces.site_list" :value="site.wiki">{{site.label}}</option>
+							</select>
+						</label>
 					</div>
-					<div v-else>
-						<div><label><span tt='namespace_id'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_id' /></label></div>
-						<div><label><span tt='ns_prefix'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_prefix' /></label></div>
+
+					<div tt_title="namespace_column">
+						<div v-if="typeof ns[h.header.kind.WikiPage.wiki]!='undefined'">
+							<span tt="namespace"></span>
+							<select v-model="h.header.kind.WikiPage.ns_id">
+								<option tt="no_default_namespace" value="null"></option>
+								<option v-for="v,k in ns[h.header.kind.WikiPage.wiki]" v-if="k>=0" :value="k" @click="wp_namespace_changed(h)">{{k}}: {{v.canonical??main_namespace_placeholder}}</option>
+							</select>
+						</div>
+						<div v-else>
+							<div><label><span tt='namespace_id'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_id' /></label></div>
+							<div><label><span tt='ns_prefix'></span> <input type='text' v-model='h.header.kind.WikiPage.ns_prefix' /></label></div>
+						</div>
 					</div>
+
 				</div>
+				<div v-else-if="h.header.kind=='PlainText'">
+					<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="plain_text"></span></div>
+				</div>
+				<div v-else-if="h.header.kind=='Int'">
+					<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="int_type"></span></div>
+				</div>
+				<div v-else-if="h.header.kind=='Float'">
+					<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="float_type"></span></div>
+				</div>
+				<div v-else>
+					UNKNOWN: {{h}}
+				</div>
+			</div>
 
-			</div>
-			<div v-else-if="h.header.kind=='PlainText'">
-				<div class="header-box-subtitle"><span tt="column_type"></span>: <span tt="plain_text"></span></div>
-			</div>
-			<div v-else>
-				UNKNOWN: {{h}}
-			</div>
-
-			<!-- <div class="header-mapping-title" tt="mapping"></div> -->
 			<div class="header-mapping">
 				<div v-for="pair in h.mapping" class="header-mapping-row">
 					<input v-if="header_options.length==1" type="text" v-model="pair[0]" readonly class="readonly" tt_title="only_one_option" />

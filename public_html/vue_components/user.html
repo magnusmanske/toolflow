@@ -1,0 +1,38 @@
+<template id='user-template'>
+<div class='container' v-if="user.id??''!=''">
+	<h3><span tt='user'></span>:{{user.name}}</h3>
+	<div>
+		<a :href="'https://meta.wikimedia.org/wiki/Special:CentralAuth/'+encodeURIComponent(user.name)" target="_blank" class="wikidata">{{user.name}}</a>
+	</div>
+	<div>
+		<router-link :to="'/workflows/user/'+id" tt="workflows_by_user"></router-link>
+	</div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let User = Vue.extend ( {
+    props : ['id'] ,
+    data : function () { return { user:{} , rows:[] } } ,
+    created : function () {
+    	this.load_user();
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+    	load_user() {
+            const myRequest = new Request("./api.php?action=user_info&id="+this.id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    // console.log(JSON.parse(JSON.stringify(data)));
+                    this.user = data.user;
+                })
+                .catch(console.error);
+    	},
+    } ,
+    template:'#user-template'
+} ) ;
+</script>

@@ -8,6 +8,7 @@
                     <th>Title</th>
                     <th>Author</th>
                     <th>Status</th>
+                    <th>Published</th>
                     <th>Last completed</th>
                 </tr>
             </thead>
@@ -17,8 +18,9 @@
                         <router-link :to="'/workflow/'+r.workflow_id">{{workflows[r.workflow_id].name}}</router-link>
                     </td>
                     <td>
-                        <a :href="'https://www.wikidata.org/wiki/Special:CentralAuth/'+encodeURIComponent(users[workflows[r.workflow_id].user_id].name)" target="_blank" class="wikidata">{{users[workflows[r.workflow_id].user_id].name}}</a></td>
+                        <router-link :to="'/user/'+users[workflows[r.workflow_id].user_id].id">{{users[workflows[r.workflow_id].user_id].name}}</router-link>
                     <td>{{r.status}}</td>
+                    <td>{{workflows[r.workflow_id].state}}</td>
                     <td>
                         <router-link v-if='typeof r.id!="undefined"' :to="'/run/'+r.id">{{r.ts_last}}</router-link>
                     </td>
@@ -33,7 +35,7 @@
 'use strict';
 
 let Workflows = Vue.extend ( {
-    props : ['mode'] ,
+    props : ['mode','id'] ,
     data : function () { return { workflows:{} , runs:[] , users:{} } } ,
     created : function () {
         this.load_workflows();
@@ -42,7 +44,9 @@ let Workflows = Vue.extend ( {
     mounted : function () { tt.updateInterface(this.$el) ; } ,
     methods : {
         load_workflows() {
-            const myRequest = new Request("./api.php?action=get_workflows&mode="+this.mode);
+            let url = "./api.php?action=get_workflows&mode="+this.mode;
+            if ( this.mode=='user' ) url += "&user_id="+this.id;
+            const myRequest = new Request(url);
             fetch(myRequest)
                 .then((response) => response.json())
                 .then((data) => {

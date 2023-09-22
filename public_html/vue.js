@@ -60,16 +60,20 @@ let external_ids = {
         // Initialize parameters as blank
         ((self.nodes[kind]??{}).params??[]).forEach(function(key){ node.parameters[key] = ''; });
 
-        ((self.nodes[kind]??{}).headers??[]).forEach(function(dh_kind){
-            if ( dh_kind=="WikiPage" ) node.header_mapping.data.push ( self.get_wiki_page_header() );
-            if ( dh_kind=="WikidataItem" ) {
-                let item = self.get_wiki_page_header();
-                item.header.kind.WikiPage.ns_id = 0;
-                item.header.kind.WikiPage.wiki = "wikidatawiki";
-                item.header.name = "wikidata_item";
-                node.header_mapping.data.push ( item );
-            }
-        });
+        if ( typeof (self.nodes[kind]??{}).header_template!='undefined' ) {
+            node.header_mapping = self.nodes[kind].header_template;
+        } else {
+            ((self.nodes[kind]??{}).headers??[]).forEach(function(dh_kind){
+                if ( dh_kind=="WikiPage" ) node.header_mapping.data.push ( self.get_wiki_page_header() );
+                if ( dh_kind=="WikidataItem" ) {
+                    let item = self.get_wiki_page_header();
+                    item.header.kind.WikiPage.ns_id = 0;
+                    item.header.kind.WikiPage.wiki = "wikidatawiki";
+                    item.header.name = "wikidata_item";
+                    node.header_mapping.data.push ( item );
+                }
+            });
+        }
 
         if ( ((self.nodes[kind]??{}).mappings??[]).length>0 ) {
             for ( let m = 0 ; m < self.nodes[kind].mappings.length; m++ ) {
@@ -215,6 +219,7 @@ $(document).ready ( function () {
             'vue_components/node-editor.html',
             'vue_components/header-mapping.html',
             'vue_components/file.html',
+            'vue_components/user.html',
             ] )
     ] )
     .then ( () => {
@@ -227,8 +232,10 @@ $(document).ready ( function () {
             { path: '/workflow', component: Workflow , props:true },
             { path: '/workflow/:id', component: Workflow , props:true },
             { path: '/workflows/:mode', component: Workflows , props:true },
+            { path: '/workflows/:mode/:id', component: Workflows , props:true },
             { path: '/run/:id', component: Run , props:true },
             { path: '/file/:uuid', component: File , props:true },
+            { path: '/user/:id', component: User , props:true },
           ] ;
           router = new VueRouter({routes}) ;
           app = new Vue ( { router } ) .$mount('#app') ;

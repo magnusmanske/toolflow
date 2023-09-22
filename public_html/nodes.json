@@ -24,6 +24,14 @@
             "url": "https://pagepile.toolforge.org/api.php?action=get_data&format=html&id={pagepile_id}",
             "mappings":[ [["page","prefixed_title"]] ]
         },
+        "WdFist": {
+            "header_template":{"data": [{"header": {"kind": {"WikiPage": {"ns_id": 0,"ns_prefix": null,"page_id": null,"prefixed_title": null,"title": null,"wiki": "wikidatawiki"}},"name": "wikidata_item"},"mapping": []},{"header": {"kind": {"WikiPage": {"ns_id": 6,"ns_prefix": "File","page_id": null,"prefixed_title": null,"title": null,"wiki": "commonswiki"}},"name": "commons_image"},"mapping": []},{"header": {"kind": "Int","name": "number_of_uses"},"mapping": []}]},
+            "params": ["wdfist_url"],
+            "headers": ["WikiPage","WikiPage","Int"],
+            "ui": [{"tag":"text","key":"wdfist_url"}],
+            "url": "{wdfist_url}",
+            "mappings": []
+        },
         "AListBuildingTool": {
             "params": ["a_list_building_tool_wiki","a_list_building_tool_qid"],
             "headers": ["WikiPage","WikidataItem"],
