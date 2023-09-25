@@ -104,6 +104,15 @@ let external_ids = {
     },
 
     node_ext_url(n) {
+        // console.log(JSON.parse(JSON.stringify(n)));
+
+        if ( n.kind=="Generator" ) {
+            if ( n.parameters.mode=='wikipage' ) {
+                return "https://"+wiki_namespaces.wiki2server(n.parameters.wiki)+"/wiki/"+(n.parameters.page??'');
+            }
+            return ''; // Fallback, no URL
+        }
+
         if ( typeof (this.nodes[n.kind]??{}).params=='undefined' ) return '';
         if ( typeof (this.nodes[n.kind]??{}).url=='undefined' ) return ''
 
@@ -217,6 +226,7 @@ $(document).ready ( function () {
             'vue_components/workflows.html',
             'vue_components/run.html',
             'vue_components/node-editor.html',
+            'vue_components/scheduler.html',
             'vue_components/header-mapping.html',
             'vue_components/file.html',
             'vue_components/user.html',
@@ -236,6 +246,7 @@ $(document).ready ( function () {
             { path: '/run/:id', component: Run , props:true },
             { path: '/file/:uuid', component: File , props:true },
             { path: '/user/:id', component: User , props:true },
+            { path: '/schedule/:workflow_id', component: Schedule , props:true },
           ] ;
           router = new VueRouter({routes}) ;
           app = new Vue ( { router } ) .$mount('#app') ;

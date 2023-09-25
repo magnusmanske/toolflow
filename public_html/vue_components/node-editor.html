@@ -5,7 +5,7 @@ table.parameters td {
 </style>
 
 <template id='node-editor-template'>
-<div class="card" style="margin-bottom:1rem;">
+<div class="card" style="margin-top:1rem;">
 	<div class="card-body" :key="'node_'+node_id">
 		<div style="float:right;">
 			<button class="btn btn-outline-danger" tt="delete_node" @click.prevent.stop="delete_node()"></button>
@@ -41,6 +41,32 @@ table.parameters td {
 							</div>
 							<div v-if="n.parameters.mode=='merge_unique'">
 								<label><span tt='join_key'></span> <input type="text" v-model="n.parameters.join_key" @change='parameter_has_changed()'/></label>
+							</div>
+							<div v-else>
+								UNKNOWN JOIN MODE {{n.parameters.mode}}
+							</div>
+						</div>
+
+						<div v-else-if="n.kind=='Generator'">
+							<div v-if="n.parameters.mode=='wikipage'">
+								<table>
+									<tr>
+										<td tt="wiki"></td>
+										<td>
+											<select v-model="n.parameters.wiki" @change="parameter_has_changed()">
+												<option v-for="site in wiki_namespaces.site_list" :value="site.wiki">{{site.label}}</option>
+											</select>
+										</td>
+									</tr>
+									<tr>
+										<td tt="page"></td>
+										<td>
+											<label>
+												<input type="text" v-model="n.parameters.page" style="width: 30rem;" @change='parameter_has_changed()'/>
+											</label>
+										</td>
+									</tr>
+								</table>
 							</div>
 							<div v-else>
 								UNKNOWN JOIN MODE {{n.parameters.mode}}
@@ -173,6 +199,7 @@ Vue.component ( 'node-editor' , {
 		potential_inputs() {
 			if ( this.n.kind=="Join" ) return Number.MAX_SAFE_INTEGER;
 			if ( this.n.kind=="Filter" ) return 1;
+			if ( this.n.kind=="Generator" ) return 1;
 			return 0;
 		},
 		potential_outputs() {

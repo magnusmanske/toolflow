@@ -1,0 +1,88 @@
+<template id='schedule-template'>
+<div class='container'>
+    <div v-if="typeof workflow.id!='undefined'">
+        <h1>
+            <router-link :to="'/workflow/'+workflow.id">
+                {{workflow.id}}: {{workflow.name}}
+            </router-link>
+        </h1>
+        <div>
+            by 
+            <router-link :to="'/user/'+users[workflow.user_id].id">{{users[workflow.user_id].name}}</router-link>
+        </div>
+
+        <div v-if="Object.keys(runs).length==0">
+            No runs or this workflow
+        </div>
+        <div v-else>
+            <span tt="run"></span>
+            <select class="form-control" style="display: inline-block; max-width: 5rem;" v-model="schedule.run_id" @change="is_edited=true">
+                <option v-for='run_id in Object.keys(runs)' :value='run_id'>{{run_id}}</option>
+            </select>
+            <span tt="repeats"></span>
+            <select class="form-control" style="display: inline-block; max-width: 7rem;"  v-model='schedule.interval' @change="is_edited=true">
+                <option value='DAILY' tt="daily"></option>
+                <option value='WEEKLY' tt="weekly"></option>
+                <option value='MONTHLY' tt="monthly "></option>
+            </select>
+            <label>
+                <input type="checkbox" v-model="schedule.is_active"  @change="is_edited=true" />
+                <span tt="is_active"></span>
+            </label>
+            <button v-if="is_edited" class="btn btn-outline-primary" tt="save" @click.prevent="save_schedule()"></button>
+        </div>
+
+    </div>
+</div>
+</template>
+
+<script>
+'use strict';
+
+let Schedule = Vue.extend ( {
+    props : ['workflow_id'] ,
+    data : function () { return { workflow:{} , schedule:{} , runs:{} , users:{} , is_edited:false } } ,
+    created : function () {
+        this.load_workflow();
+    } ,
+    updated : function () { tt.updateInterface(this.$el) ; } ,
+    mounted : function () { tt.updateInterface(this.$el) ; } ,
+    methods : {
+        load_workflow() {
+            const myRequest = new Request("./api.php?action=get_workflow&id="+this.workflow_id);
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                    // console.log(JSON.parse(JSON.stringify(data)));
+                    this.runs = data.runs;
+                    this.users = data.users;
+                    this.schedule = data.schedule||{};
+                    if ( typeof this.schedule.workflow_id=='undefined' && Object.keys(this.runs).length>0) {
+                        this.schedule = {
+                            workflow_id: this.workflow_id,
+                            run_id: Math.max(...Object.keys(this.runs)),
+                            interval: 'MONTHLY',
+                            is_active: true,
+                        };
+                        this.is_edited = true;
+                    }
+
+                    this.workflow = data.workflow;
+                })
+                .catch(console.error);
+        },
+        save_schedule: function() {
+            const myRequest = new Request("./api.php?action=set_schedule&id="+this.workflow_id+"&json="+JSON.stringify(this.schedule));
+            fetch(myRequest)
+                .then((response) => response.json())
+                .then((data) => {
+                })
+                .catch(console.error);
+        },
+        is_logged_in() {
+            return widar.is_logged_in;
+        }
+    } ,
+    template:'#schedule-template'
+} ) ;
+</script>

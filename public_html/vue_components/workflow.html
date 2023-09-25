@@ -81,6 +81,13 @@ div.run-box {
     padding: 1px; 
     box-shadow: 0 10px 16px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19) !important;
 }
+div.arrow-down {
+  width: 0; 
+  height: 0; 
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid black;
+}
 </style>
 
 <template id='workflow-template'>
@@ -90,6 +97,7 @@ div.run-box {
             <button v-if="was_edited" class="btn btn-outline-primary" @click.prevent="save_workflow()" tt="save_changes"></button>
             <button v-if="workflow.state=='PUBLISHED'" type="button" class="btn btn-primary" tt="pubished" @click.prevent="toggle_state()"></button>
             <button v-if="workflow.state=='DRAFT'" type="button" class="btn btn-secondary" tt="draft" @click.prevent="toggle_state()"></button>
+            <router-link class="btn btn-outline-secondary" :to="'/schedule/'+id" tt_title="schedule_workflow">🕒</router-link>
             <button v-if="is_logged_in()" class="btn btn-outline-success" tt="fork_workflow" @click.prevent.stop="fork_workflow"></button>
         </div>
         <h2>
@@ -99,7 +107,7 @@ div.run-box {
         <div v-if="forked_from!=0">
             <span tt="forked_from_workflow"></span> #<router-link :to="'/workflow/'+forked_from">{{forked_from}}</router-link>
         </div>
-        <div style="height: 3.5rem;">
+        <div style="min-height: 3.5rem;">
             by 
             <router-link :to="'/user/'+users[workflow.user_id].id">{{users[workflow.user_id].name}}</router-link>
             <div class="run-box">
@@ -137,9 +145,18 @@ div.run-box {
                     </span>
                 </div>
             </div>
+            <div>
+                <textarea v-if='editing_description' v-model='workflow.description' rows='3' tt_placeholder="description" @change='was_edited=true' style="width: 100%;clear: both;">
+                </textarea>
+                <span v-else>{{workflow.description}}</span>
+                <small v-if='can_edit()'><a href='#' @click.prevent='editing_description=!editing_description'>
+                    <span v-if='editing_description'>✓</span>
+                    <span v-else>✎</span>
+                </a></small>
+            </div>
         </div>
 
-        <div>
+        <div style="clear: both;">
             <nav class="navbar navbar-expand-lg navbar-light bg-light">
                 <span class="navbar-brand" tt="add_new_node"></span>
                 <div class="collapse navbar-collapse">
@@ -158,6 +175,12 @@ div.run-box {
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Filter')" tt="filter"></a>
                             </div>
                         </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tt="generator"></a>
+                            <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                <a class="dropdown-item" href="#" @click.prevent="new_node('Generator/wikipage')" tt="generator_wikipage"></a>
+                            </div>
+                        </li>
                     </ul>
                 </div>
             </nav>
@@ -167,6 +190,9 @@ div.run-box {
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+e.y+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname1+' connector_bottom edge'"></div>
 
             <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h/2)+'px;left:'+e.x+'px;width:'+e.w+'px;height:'+(e.h/2)+'px;'" :class="e.classname2+' edge'"></div>
+
+            <div v-for='e in layout.edges' :style="'position:absolute; top:'+(e.y+e.h-8)+'px;left:'+(e.classname2=='connector_right'?e.x+e.w-8:e.x-8)+'px;width:3px'" class="arrow-down"></div>
+
 
             <div v-for='n,node_id in layout.nodes' :style="'position:absolute; top:'+n.y+'px;left:'+n.x+'px;width:'+n.w+'px;height:'+n.h+'px;'" :class="'node'+(node_id==current_node_id?' node-selected':'')" @click.prevent.stop="set_current_node(node_id)">
                 <div :class="'node-title node-title-'+(((run.details??[])[n.node_id]||{}).status??'').toLowerCase()" :title="(((run.details??[])[n.node_id]||{}).status??'')">
@@ -213,6 +239,11 @@ div.run-box {
                         <span><i>{{workflow.json.nodes[n.node_id].parameters.operator}}</i></span>
                         <span><tt>{{workflow.json.nodes[n.node_id].parameters.value}}</tt></span>
                     </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='Generator'">
+                        <div v-if="workflow.json.nodes[n.node_id].parameters.mode=='wikipage'">
+                            {{workflow.json.nodes[n.node_id].parameters.wiki}}: {{workflow.json.nodes[n.node_id].parameters.page}}
+                        </div>
+                    </div>
                     <div v-else>
                         {{workflow.json.nodes[n.node_id]}}
                     </div>
@@ -257,7 +288,7 @@ let Workflow = Vue.extend ( {
     props : ['id'] ,
     data : function () { return { workflow:{} , users:{} , current_node_id:-1 , external_headers:{'':{'':[]}}, was_edited:false, 
             new_tools:Object.keys(external_ids.nodes).sort(),//['AListBuildingTool','PagePile','PetScan','QuarryQueryLatest','Sparql'],
-            run_id:-1, run:{}, forked_from: 0, files:[], reset_node:[],
+            run_id:-1, run:{}, forked_from: 0, files:[], reset_node:[], editing_description:false,
             layout:{} , layout_done:false, screen_width: 1024, screen_height: 512,
      } } ,
     created : function () {
@@ -272,6 +303,7 @@ let Workflow = Vue.extend ( {
             this.run_id = -1;
             this.files = [];
             this.current_node_id = -1;
+            this.editing_description = false;
             current_node_data = {};
             this.was_edited = false;
             const myRequest = new Request("./api.php?action=get_workflow&id="+id);
@@ -307,6 +339,13 @@ let Workflow = Vue.extend ( {
                 node.parameters.operator = "Equal";
                 node.parameters.value = "";
                 node.parameters.remove_matching = false;
+            }
+            if ( kind=="Generator" ) {
+                node.parameters.mode = key.replace(/^.+\//,'');
+                if ( node.parameters.mode=="wikipage" ) {
+                    node.parameters.wiki = '';
+                    node.parameters.page = '';
+                }
             }
 
             this.workflow.json.nodes.push(node);
@@ -402,6 +441,7 @@ let Workflow = Vue.extend ( {
         save_workflow(callback) {
             if ( typeof this.workflow.id=='undefined' ) return alert("No workflow ID");
             this.update_current_node();
+            this.editing_description = false;
             let nodes_to_reset = this.get_nodes_to_reset();
             const myRequest = new Request("./api.php?action=set_workflow&workflow="+encodeURIComponent(JSON.stringify(this.workflow))+"&reset_nodes="+JSON.stringify(nodes_to_reset)+"&run_id="+this.run_id)
             fetch(myRequest)
@@ -482,6 +522,9 @@ let Workflow = Vue.extend ( {
                 let o = { source:e.source_node , target:e.target_node };
                 this.layout.edges.push(o);
             }
+
+            if ( max_row>3 ) this.screen_height = max_row*512/3;
+            else this.screen_height = 512;
 
             let node_width = this.screen_width/(nodes.length+1); 
             let node_height = this.screen_height/(max_row+2);
@@ -634,7 +677,8 @@ let Workflow = Vue.extend ( {
             this.update_current_node();
             if ( this.workflow.state=='DRAFT' ) this.workflow.state ='PUBLISHED';
             else this.workflow.state ='DRAFT';
-            this.save_workflow();
+            this.was_edited = true;
+            // this.save_workflow();
         },
         can_edit() {
             return ( widar.userinfo.id??0==this.workflow.user_id );

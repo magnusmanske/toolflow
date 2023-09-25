@@ -131,6 +131,26 @@ if ( $action == 'user_info' ) {
 
 	$j->status = 'OK';
 
+} else if ( $action == 'set_schedule' ) {
+
+	$json = json_decode($tfc->getRequest("json","{}"));
+	$workflow_id = $json->workflow_id*1;
+	if ( $workflow_id<=0 ) finish("Bad workflow ID {$json->workflow_id}");
+	ensure_db();
+	$user_id = get_user_id();
+	if ( !can_change_workflow($workflow_id,$user_id) ) finish("You do not own this workflow");
+	$run_id = $json->run_id*1; // TODO ensure run_id is actually of workflow workflow_id
+	$interval = $db->real_escape_string ( $json->interval ) ;
+	$is_active = $json->is_active*1;
+	if ( $interval=='MONTHLY' ) $next_event = "DATE_ADD(now(), INTERVAL 1 MONTH)";
+	else if ( $interval=='WEEKLY' ) $next_event = "DATE_ADD(now(), INTERVAL 1 WEEK)";
+	else if ( $interval=='DAILY' ) $next_event = "DATE_ADD(now(), INTERVAL 1 DAY)";
+	else finish("Invalid interval '{$interval}'");
+	$sql = "REPLACE INTO `scheduler` (`workflow_id`,`run_id`,`next_event`,`interval`,`is_active`) VALUES ({$workflow_id},{$run_id},{$next_event},'{$interval}',{$is_active})" ;
+	$result = $tfc->getSQL($db,$sql);
+	$j->status = 'OK';
+
+
 } else if ( $action == 'get_workflow' ) {
 
 	$id = $tfc->getRequest("id",0)*1;
@@ -154,6 +174,15 @@ if ( $action == 'user_info' ) {
 		$result = $tfc->getSQL($db,$sql);
 		if($o = $result->fetch_object()) $j->forked_from = $o->source;
 
+		$sql = "SELECT * FROM `scheduler` WHERE `workflow_id`={$id}" ;
+		$result = $tfc->getSQL($db,$sql);
+		if($o = $result->fetch_object()) $j->schedule = $o;
+
+		$j->runs = [];
+		$sql = "SELECT * FROM `run` WHERE `workflow_id`={$id}" ;
+		$result = $tfc->getSQL($db,$sql);
+		while($o = $result->fetch_object()) $j->runs[$o->id] = $o;
+
 		add_users();
 	} else {
 		$j->status = 'Missing/bad workflow ID';
@@ -173,10 +202,11 @@ if ( $action == 'user_info' ) {
 		reset_nodes($run_id,$reset_nodes);
 		if ( !can_change_workflow($workflow->id,$user_id) ) finish("You do not own this workflow");
 		$name_safe = $db->real_escape_string ( $workflow->name ) ;
+		$description_safe = $db->real_escape_string ( $workflow->description ) ;
 		$state_safe = $db->real_escape_string ( $workflow->state ) ;
 		$json_safe = json_encode ( $workflow->json ) ;
 		$workflow_id = $workflow->id*1 ;
-		$sql = "UPDATE `workflow` SET `json`='{$json_safe}',`name`='{$name_safe}',`state`='{$state_safe}',`ts_last`=NOW() WHERE `id`={$workflow_id} AND `user_id`={$user_id}" ;
+		$sql = "UPDATE `workflow` SET `json`='{$json_safe}',`name`='{$name_safe}',`description`='{$description_safe}',`state`='{$state_safe}',`ts_last`=NOW() WHERE `id`={$workflow_id} AND `user_id`={$user_id}" ;
 		$tfc->getSQL($db,$sql);
 		if ( $db->affected_rows == 1 ) $j->status = 'OK';
 		else $j->status = "Workflow {$workflow_id} does not exist, or does not belong to you";

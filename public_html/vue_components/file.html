@@ -13,12 +13,15 @@
 			    <a class="dropdown-item" :href="'/api.php?action=download_file&attachment=1&format=json&uuid='+uuid">JSON</a>
 			    <a class="dropdown-item" target="_blank" :href="'/api.php?action=download_file&format=json&uuid='+uuid">JSON <span tt='open_in_tab'></span></a>
 			    <a class="dropdown-item" target="_blank" :href="'/api.php?action=download_file&format=wiki&uuid='+uuid">wikitext <span tt='open_in_tab'></span></a>
-<!-- 			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=tsv&uuid='+uuid">TSV</a>
-			    <a class="dropdown-item" :href="'/api.php?action=download_file&format=csv&uuid='+uuid">CSV</a>
- -->			  </div>
+			  </div>
 			</div>
 		</div>
-		{{Intl.NumberFormat().format(file.rows-1)}} data rows, showing 1-{{rows.length-1}}
+		<div>
+			{{Intl.NumberFormat().format(file.rows-1)}} data rows, showing 1-{{rows.length-1}} |
+			<span tt='created'></span> {{file.ts_created}} |
+			<span tt='run'></span>
+			<router-link :to="'/run/'+file.run_id">#{{file.run_id}}</router-link>
+		</div>
 	</div>
 
 	<div v-if='rows.length>0'>

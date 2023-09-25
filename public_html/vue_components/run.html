@@ -1,7 +1,7 @@
 <template id='run-template'>
 <div class='container'>
     <div v-if="typeof run.id!='undefined'">
-        <h1>Run {{run.id}} <small>[workflow <router-link :to="'/workflow/'+run.workflow_id">{{run.workflow_id}}</router-link>]</small></h1>
+        <h1>Run #{{run.id}} <small>[workflow <router-link :to="'/workflow/'+run.workflow_id">#{{run.workflow_id}}</router-link>]</small></h1>
         <div>
             <button type="button" class="btn btn-primary">
                 Status
