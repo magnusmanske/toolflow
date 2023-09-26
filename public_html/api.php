@@ -221,7 +221,7 @@ if ( $action == 'user_info' ) {
 	$name_safe = $db->real_escape_string ( "Unnamed workflow" ) ;
 	$state_safe = $db->real_escape_string ( "DRAFT" ) ;
 	$json_safe = json_encode ( $json ) ;
-	$sql = "INSERT INTO `workflow` (`name`,`json`,`state`,`user_id`,`ts_created`) VALUES ('{$name_safe}','{$json_safe}','{$state_safe}',{$user_id},NOW())" ;
+	$sql = "INSERT INTO `workflow` (`name`,`description`,`json`,`state`,`user_id`,`ts_created`) VALUES ('{$name_safe}','','{$json_safe}','{$state_safe}',{$user_id},NOW())" ;
 	$tfc->getSQL($db,$sql);
 	if ( $db->affected_rows == 1 ) {
 		$j->status = 'OK';
@@ -238,7 +238,7 @@ if ( $action == 'user_info' ) {
 	if ( !isset($user_id) ) finish('Not logged in');
 	$workflow_id = $tfc->getRequest('id',0)*1;
 	if ( $workflow_id<=0 ) finish('No valid workflow ID');
-	$sql = "INSERT INTO `workflow` (`name`,`json`,`user_id`,`ts_created`,`state`) SELECT concat(`name`,' [FORK]'),`json`,{$user_id},NOW(),'DRAFT' FROM `workflow` WHERE `id`={$workflow_id}" ;
+	$sql = "INSERT INTO `workflow` (`name`,`description`,`json`,`user_id`,`ts_created`,`state`) SELECT concat(`name`,`description`,' [FORK]'),`json`,{$user_id},NOW(),'DRAFT' FROM `workflow` WHERE `id`={$workflow_id}" ;
 	$j->sql = $sql ;
 	$tfc->getSQL($db,$sql);
 	$j->new_workflow_id = $db->insert_id;
