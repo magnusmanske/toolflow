@@ -92,7 +92,7 @@ input[readonly].readonly {
 
 			<div class="header-mapping">
 				<div v-for="pair in h.mapping" class="header-mapping-row">
-					<input v-if="header_options.length==1" type="text" v-model="pair[0]" readonly class="readonly" tt_title="only_one_option" />
+					<input v-if="header_options.length==1" type="text" v-model="pair[0]"  tt_title="only_one_option" /> <!-- readonly class="readonly" -->
 					<select v-else-if="header_options.length>0" v-model="pair[0]">
 						<option v-for="h in header_options" :value="h">{{h}}</option>
 					</select>
@@ -112,7 +112,16 @@ input[readonly].readonly {
 					<span v-else-if="h.header.kind=='PlainText'"></span>
 					<input v-else type="text" v-model="pair[1]" />
 				</div>
+				<div v-if='can_edit'>
+					<a href='#' @click.prevent='add_header_mapping(h)' tt='add_header_mapping'></a>
+				</div>
 			</div>
+		</div>
+		<div v-if='can_edit'>
+			<h4 tt="add_output_mapping"></h4>
+			<ul>
+				<li><a href='#' @click.prevent='add_output_mapping("PlainText")' tt='add_output_mapping_text'></a></li>
+			</ul>
 		</div>
 	</div>
 </div>
@@ -136,6 +145,9 @@ Vue.component ( 'header-mapping' , {
     updated : function () { tt.updateInterface(this.$el) ; } ,
     mounted : function () { tt.updateInterface(this.$el) ; } ,
 	methods : {
+		add_output_mapping(kind) {
+			this.$emit('add-output-mapping',kind) ;
+		},
 		update_wiki(h) {
 			if ( typeof h.header.kind.WikiPage=='undefined' ) return ;
 			let self = this;
@@ -144,6 +156,9 @@ Vue.component ( 'header-mapping' , {
 		},
 		header_has_parts(h) {
 			return h.header.kind!='PlainText';
+		},
+		add_header_mapping(h) {
+			h.mapping.push(['','']);
 		},
 		edit_string(s) {
 			let ns = prompt(tt.t('new_value'), s);

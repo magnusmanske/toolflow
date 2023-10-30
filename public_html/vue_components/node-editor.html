@@ -73,6 +73,21 @@ table.parameters td {
 							</div>
 						</div>
 
+						<div v-else-if="n.kind=='FilterPetScan'">
+							<table>
+								<tbody>
+									<tr>
+										<td tt="filter_key"></td>
+										<td><input type="text" v-model="n.parameters.key" @change='parameter_has_changed()'/></td>
+									</tr>
+									<tr>
+										<td tt="filter_psid"></td>
+										<td><input type="text" v-model="n.parameters.psid" @change='parameter_has_changed()'/></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
 						<div v-else-if="n.kind=='Filter'">
 							<table>
 								<tbody>
@@ -166,7 +181,7 @@ table.parameters td {
 				<tr v-if="n.header_mapping.data.length>0">
 					<th tt="output_mapping"></th>
 					<td style="max-width: 20rem;">
-						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' :can_edit='can_edit' @data-changed='header_data_changed(n,$event)' :key="JSON.stringify(n.header_mapping)+JSON.stringify(n.header_options)"></header-mapping>
+						<header-mapping :header_mapping="n.header_mapping" :header_options='header_options' :can_edit='can_edit' @data-changed='header_data_changed(n,$event)' @add-output-mapping='add_output_mapping($event)' :key="JSON.stringify(n.header_mapping)+JSON.stringify(n.header_options)"></header-mapping>
 					</td>
 				</tr>
 			</table>
@@ -199,6 +214,7 @@ Vue.component ( 'node-editor' , {
 		potential_inputs() {
 			if ( this.n.kind=="Join" ) return Number.MAX_SAFE_INTEGER;
 			if ( this.n.kind=="Filter" ) return 1;
+			if ( this.n.kind=="FilterPetScan" ) return 1;
 			if ( this.n.kind=="Generator" ) return 1;
 			return 0;
 		},
@@ -212,6 +228,12 @@ Vue.component ( 'node-editor' , {
 			});
 			return ret;
 		},
+		add_output_mapping(kind) {
+			if ( kind=='PlainText' ) {
+				let nh = {header:{kind,name:"text"},mapping:[['','']]};
+				this.n.header_mapping.data.push(nh);
+			} else alert ( "Cannot add output header mapping type '"+kind+"'" );
+		},
 		add_input() {
 			let edge = { source_node:this.new_source_node , target_node:this.node_id, target_slot:this.inputs.length };
 			this.$emit('add-edge',edge) ;
@@ -220,7 +242,7 @@ Vue.component ( 'node-editor' , {
 			this.$emit('remove-edge',{source_node:input_node_id,target_node:this.node_id}) ;
 		},
 		parameter_has_changed() {
-			if ( this.n.kind=='AListBuildingTool' ) {
+			if ( this.n.kind=='AListBuilding' ) {
 				let old_wiki = this.n.header_mapping.data[0].header.kind.WikiPage.wiki;
 				let new_wiki = this.n.parameters.a_list_building_tool_wiki;
 				if ( new_wiki!='' && new_wiki!=old_wiki ) {

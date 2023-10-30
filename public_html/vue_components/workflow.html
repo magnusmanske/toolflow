@@ -173,6 +173,7 @@ div.arrow-down {
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Join/inner_join_on_key')" tt="inner_join_on_key"></a>
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Join/merge_unique')" tt="merge_unique"></a>
                                 <a class="dropdown-item" href="#" @click.prevent="new_node('Filter')" tt="filter"></a>
+                                <a class="dropdown-item" href="#" @click.prevent="new_node('FilterPetScan')" tt="filter_petscan"></a>
                             </div>
                         </li>
                         <li class="nav-item dropdown">
@@ -222,9 +223,16 @@ div.arrow-down {
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='WdFist'">
                         {{decodeURIComponent((workflow.json.nodes[n.node_id].parameters.wdfist_url??'').replace(/^.+?\bsparql=(.+?)&.*$/,"$1"))}}
                     </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='UserEdits'">
+                        {{decodeURIComponent((workflow.json.nodes[n.node_id].parameters.user_edits_url??'').replace(/^.+?\?/,""))}}
+                    </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Join'">
                         <div>{{workflow.json.nodes[n.node_id].parameters.mode.replace(/_/g,' ')}}</div>
                         <div>on <i>{{workflow.json.nodes[n.node_id].parameters.join_key}}</i></div>
+                    </div>
+                    <div v-else-if="workflow.json.nodes[n.node_id].kind=='FilterPetScan'">
+                        <div>Key {{workflow.json.nodes[n.node_id].parameters.key}}</div>
+                        <div>PSID {{workflow.json.nodes[n.node_id].parameters.psid}}</div>
                     </div>
                     <div v-else-if="workflow.json.nodes[n.node_id].kind=='Filter'">
                         <b>
@@ -340,6 +348,10 @@ let Workflow = Vue.extend ( {
                 node.parameters.value = "";
                 node.parameters.remove_matching = false;
             }
+            if ( kind=="FilterPetScan" ) {
+                node.parameters.key = "";
+                node.parameters.psid = "";
+            }
             if ( kind=="Generator" ) {
                 node.parameters.mode = key.replace(/^.+\//,'');
                 if ( node.parameters.mode=="wikipage" ) {
@@ -383,7 +395,10 @@ let Workflow = Vue.extend ( {
                 .then((response) => response.json())
                 .then((data) => {
                     this.run = data.run;
-                    this.files = data.files;
+                    let self = this;
+                    this.files = [] ; // Data files is sometimes an object, so forcing array
+                    $.each(data.files,function(k,v){self.files[k]=v;});
+                    // this.files = data.files;
                     // console.log(JSON.parse(JSON.stringify(data)));
                     if ( typeof callback!='undefined' ) callback();
                 })
@@ -681,7 +696,7 @@ let Workflow = Vue.extend ( {
             // this.save_workflow();
         },
         can_edit() {
-            return ( widar.userinfo.id??0==this.workflow.user_id );
+            return ( (widar.userinfo.id??0)==this.workflow.user_id );
         },
         is_logged_in() {
             return widar.is_logged_in;

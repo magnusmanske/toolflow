@@ -425,6 +425,8 @@ if ( $action == 'user_info' ) {
 	$uuid = strtolower($tfc->getRequest('uuid',''));
 	$format = strtolower($tfc->getRequest('format','jsonl'));
 
+	if ( !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/',$uuid) ) finish("Invalid UUID: '{$uuid}'");
+
 	$as_attachment = $tfc->getRequest('attachment',0)*1;
 	if ( $as_attachment ) header("content-disposition:attachment; filename=\"{$uuid}.{$format}\"");
 
@@ -453,70 +455,11 @@ if ( $action == 'user_info' ) {
 			fclose($fp);
 		} else if ( $format=='wiki' ) {
 			header('Content-type: text/plain');
-			$path = get_file_path($uuid);
-			$fp = fopen($path, 'rb');
-
-			# Header
-			$default_wiki = strtolower($tfc->getRequest('wiki',''));
-			$header = json_decode(fgets($fp));
-			print "{| class=\"wikitable\"\n";
-			foreach ( $header->columns AS $col ) {
-				print "! ".ucfirst(str_replace('_',' ',$col->name))."\n";
-				if ( $default_wiki=='' and isset($col->kind->WikiPage) ) {
-					$default_wiki = $col->kind->WikiPage->wiki??'';
-				}
-			}
-
-			# Rows
-			$namespaces_that_need_prefix = [6,14]; # File, category
-			while (($buffer = fgets($fp)) !== false) {
-				$row = json_decode($buffer);
-				print "|--\n";
-				foreach ( $header->columns AS $colnum => $col ) {
-					if ( !isset($row[$colnum]) ) { # No cell
-						print "||\n";
-						continue;
-					}
-					$cell = $row[$colnum];
-					if ( isset($cell->WikiPage) ) {
-						// print_r($cell);
-						$wiki = $cell->WikiPage->wiki ?? '';
-						$title = $cell->WikiPage->prefixed_title;
-						if ( $wiki != $default_wiki ) {
-							if ( $wiki=='commonswiki' and $cell->WikiPage->ns_id==6 ) { # File
-								$title = "{$title}|thumbnail|";
-							} else {
-								$wiki_prefix = preg_replace('|^(.+)wik.*$|','$1',$wiki);
-								$title = ":{$wiki_prefix}:{$title}";
-							}
-						} else if ( $cell->WikiPage->ns_id==6 ) { # File
-							$title = "{$title}|thumbnail|";
-						} else if ( in_array($cell->WikiPage->ns_id, $namespaces_that_need_prefix) ) $title = ":{$title}";
-
-						$link = $title ;
-						if ( $cell->WikiPage->ns_id!=6 and strpos($title, '_')!==false ) {
-							$pretty_title = str_replace('_', ' ', $title);
-							$pretty_title = preg_replace('|^:+|','',$pretty_title);
-							$link = $title."|".$pretty_title;
-						}
-						print "| [[{$link}]]\n";
-					} else if ( isset($cell->PlainText) ) {
-						print "| {$cell->PlainText}\n";
-					} else if ( isset($cell->Int) ) {
-						print "| {$cell->Int}\n";
-					} else if ( isset($cell->Float) ) {
-						print "| {$cell->Float}\n";
-					} else {
-						print "| UNKOWN CELL TYPE: " . json_encode($cell) . "\n";
-					}
-				}
-			}
-
-			print "|}\n";
-			$time = $date = date('m/d/Y h:i:s a', time());;
-			print "from [https://toolflow.toolforge.org/#/file/{$uuid} ToolFlow] {$time} UTC\n"; 
-
-
+			$command = "/data/project/toolflow/toolflow_rs/target/release/toolflow render wiki '{$uuid}'";
+			$fp = popen($command, "r");
+			fpassthru($fp);
+			fclose($fp);
+			exit(0);
 		} else {
 			$j->status = "Unknown format '{$format}'";
 		}

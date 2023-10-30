@@ -2,6 +2,7 @@
     "nodes": {
         "QuarryQueryLatest": {
             "params":["quarry_query_id"],
+            "headers": ["WikiPage"],
             "ui": [{"tag":"text","key":"quarry_query_id","label":"quarry_id"}],
             "url": "https://quarry.wmcloud.org/query/{quarry_query_id}"
         },
@@ -31,6 +32,14 @@
             "ui": [{"tag":"text","key":"wdfist_url"}],
             "url": "{wdfist_url}",
             "mappings": []
+        },
+        "UserEdits": {
+            "header_template":{"data": [{"header": {"kind": {"WikiPage": {"ns_id": 0,"ns_prefix": null,"page_id": null,"prefixed_title": null,"title": null,"wiki": "wikidatawiki"}},"name": "wikidata_item"},"mapping": []}]},
+            "params": ["user_edits_url"],
+            "headers": ["WikiPage"],
+            "ui": [{"tag":"text","key":"user_edits_url"}],
+            "url": "{user_edits_url}",
+            "mappings": [ [["page_title","prefixed_title"]] ]
         },
         "AListBuildingTool": {
             "params": ["a_list_building_tool_wiki","a_list_building_tool_qid"],
